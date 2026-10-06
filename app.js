@@ -301,8 +301,7 @@
       return;
     }
     if(parsed.action==="edit") {
-      const compact = value => String(value || "").replace(/[\s的这条个]/g, "").toLowerCase();
-      const rawCompact = compact(raw);
+      const compact = value => String(value || "").toLocaleLowerCase().replace(/[\s的这条个]/g, "");
       const editMarker = raw.match(/(?:改为|改成|改到|调整到|更改到|设置为|设定为|换成)/);
       const destinationText = editMarker ? raw.slice(editMarker.index + editMarker[0].length) : "";
       const destinationParsed = destinationText ? parseTargetDate(destinationText) : null;
@@ -323,25 +322,57 @@
       }
       const locationChange = raw.match(/(?:地点|位置)\s*(?:设置\s*(?:为|成|到)|设定\s*(?:为|成|到)|改\s*(?:为|成|到)|调整\s*(?:为|成|到)|更改\s*(?:为|成|到)|改为|改成|调整为|更改为|设为|为|是)\s*([^，,。；;]+)/);
       const renameMatch = raw.match(/(?:改名为|名称改为|标题改为)([^，,。；;]+)/);
-      let candidates = occurrenceEvents(parsed.date).filter(e => rawCompact.includes(compact(e.title)));
-      if (!candidates.length && destinationDate && /(?:明天|明日|今天|今日|后天|大后天)/.test(raw) && /把/.test(raw)) candidates = occurrenceEvents(parsed.date);
-      if (!candidates.length) {
-        showDraft('<h4>未找到明确匹配的日程</h4><p>原日程日期：'+esc(parsed.date)+'</p><p>请在指令中写出已有日程名称，例如“把项目会地点设置为食堂”。没有任何内容被修改，也不会新建待办。</p>');
-        return;
-      }
-      showDraft('<h4>请选择要修改的日程</h4><p>原日程日期：'+esc(parsed.date)+'。选择后会打开编辑窗口，核对并保存才会生效。重复日程会修改整个系列。</p>'+candidates.map(e=>'<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.time||"无指定时间")+' · '+esc(e.repeat!=="none"?"重复系列":"单次日程")+(e.location?" · "+esc(e.location):"")+'</p><button type="button" class="secondary-btn" data-edit-id="'+esc(e.id)+'">选择并修改</button></div>').join(""));
-      $("draftArea").querySelectorAll("[data-edit-id]").forEach(btn=>btn.addEventListener("click",()=>{
-        const e=state.events.find(x=>x.id===btn.dataset.editId); if(!e)return;
+      const sourcePrefix = editMarker ? raw.slice(0,editMarker.index) : raw;
+      const targetKeyword = sourcePrefix
+        .replace(/请帮我|请|帮我|将|把|安排一下|安排|修改|调整|更改|设置|设定/g," ")
+        .replace(/大后天|后天|明天|明日|今天|今日|下周|下星期|这周|本周|周[一二三四五六日天1-7]|星期[一二三四五六日天1-7]|20\d{2}[年./-]\d{1,2}[月./-]\d{1,2}日?|\d{1,2}月\d{1,2}日?/g," ")
+        .replace(/(上午|早上|中午|下午|晚上|傍晚)?\s*\d{1,2}(?:(?:[:：]\d{1,2})|(?:[点时](?:\d{1,2}分?|半)?))?/g," ")
+        .replace(/提前\s*\d+\s*分钟?提醒/g," ")
+        .replace(/(?:时间|日期|地点|位置|标题|名称|提醒)$/g,"")
+        .replace(/[的这条个：:，,。；;\s]/g,"").trim();
+      const eventCandidates = occurrenceEvents(parsed.date);
+      const findMatches = keyword => {
+        const normalized = compact(keyword).replace(/[，,。；;、]+/g," ").trim();
+        const terms = normalized.split(/\s+/).filter(Boolean);
+        if(!terms.length)return [];
+        return eventCandidates.filter(e=>{
+          const title=compact(e.title);
+          return terms.every(term=>title.includes(term)) || title.includes(normalized.replace(/\s+/g,""));
+        });
+      };
+      const applyEdit = eventId => {
+        const e=state.events.find(x=>x.id===eventId);if(!e)return;
         editEvent(e.id);
         if(!$("eventDialog").open)return;
         if(parsed.time)$("eventTime").value=parsed.time;
         if(parsed.endTime){$("eventEnd").value=parsed.endTime;syncCountdownOption();}
         if(destinationDate)$("eventDate").value=destinationDate;
         if(locationChange)$("eventLocation").value=locationChange[1].trim().replace(/^(为|成|到)\s*/,"");
-        if(destinationDate)$("eventDate").value=destinationDate;
         if(renameMatch)$("eventTitle").value=renameMatch[1].trim();
-        toast("已填入修改建议；请检查日期、地点等内容后点击“保存日程”");
-      }));
+        toast("已填入修改建议；请检查后点击“保存日程”");
+      };
+      const openNewDraft = keyword => {
+        const draftTitle=(keyword||targetKeyword||parsed.title||"").trim()||"新待办（请填写标题）";
+        const draftDate=destinationDate||parsed.date;
+        openEditor({...parsed,id:"",title:draftTitle,date:draftDate});
+        $("eventId").value="";$("eventTitle").value=draftTitle;$("eventDate").value=draftDate;
+        $("eventTime").value=parsed.time||"";$("eventEnd").value=parsed.endTime||"";
+        $("eventCountdownEnabled").checked=!!parsed.countdownEnabled;syncCountdownOption();
+        $("eventReminder").value=String(parsed.reminder);$("eventLocation").value=parsed.location;$("eventRepeat").value=parsed.repeat;
+        toast("已打开新待办草稿；请核对标题和日期后再保存");
+      };
+      const renderEditSearch = keyword => {
+        const candidates=findMatches(keyword);
+        const resultsHtml=candidates.length
+          ? candidates.map(e=>'<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.date)+' · '+esc(e.time||"无指定时间")+(e.endTime?" – "+esc(e.endTime):"")+' · '+esc(e.repeat!=="none"?"重复系列":"单次日程")+(e.location?" · "+esc(e.location):"")+'</p><button type="button" class="secondary-btn" data-edit-id="'+esc(e.id)+'">选择并修改</button></div>').join("")
+          : '<p class="notice">在 '+esc(parsed.date)+' 没有找到标题包含“'+esc(keyword||"（空关键词）")+'”的日程。你可以换个更短的关键词，或选择把这句话作为新待办草稿。</p>';
+        showDraft('<h4>按日期和标题关键词查找</h4><p>先查找原日程日期：'+esc(parsed.date)+'。标题支持部分匹配，例如“完成 A”可以匹配“完成 A 并设计 B”。</p><label class="field-label" for="editKeywordInput">项目标题关键词</label><div class="search-input-row"><input id="editKeywordInput" type="search" value="'+esc(keyword)+'" placeholder="输入项目标题中的几个字"><button type="button" class="secondary-btn" id="searchEditKeywordBtn">搜索</button></div>'+resultsHtml+'<div class="draft-buttons"><button type="button" class="secondary-btn" id="createNewFromEditBtn">未找到？作为新待办草稿</button></div>');
+        $("searchEditKeywordBtn").addEventListener("click",()=>renderEditSearch($("editKeywordInput").value.trim()));
+        $("editKeywordInput").addEventListener("keydown",ev=>{if(ev.key==="Enter"){ev.preventDefault();renderEditSearch($("editKeywordInput").value.trim());}});
+        $("draftArea").querySelectorAll("[data-edit-id]").forEach(btn=>btn.addEventListener("click",()=>applyEdit(btn.dataset.editId)));
+        $("createNewFromEditBtn").addEventListener("click",()=>openNewDraft($("editKeywordInput").value.trim()));
+      };
+      renderEditSearch(targetKeyword);
       return;
     }
     showDraft('<h4>待确认草稿</h4><p><strong>事项：</strong>'+esc(parsed.title||"请补充事项名称")+'</p><p><strong>日期：</strong>'+esc(parsed.date)+'</p><p><strong>开始时间：</strong>'+esc(parsed.time||"未识别，请保存前填写")+'</p><p><strong>结束时间：</strong>'+esc(parsed.endTime||"未指定（普通待办）")+'</p><p><strong>地点：</strong>'+esc(parsed.location||"未指定")+'</p><p><strong>重复：</strong>'+esc(repeatLabel(parsed.repeat)||"不重复")+'</p><p><strong>提醒：</strong>'+esc(parsed.reminder?parsed.reminder+" 分钟前":"关闭")+'</p><p class="notice">请检查标题、日期、时间、地点与重复规则后再保存。</p><div class="draft-buttons"><button class="secondary-btn" id="discardDraft">放弃</button><button class="primary-btn" id="useDraft">检查并编辑</button></div>');
