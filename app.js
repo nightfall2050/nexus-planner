@@ -296,18 +296,24 @@
     d.setHours(parts[0]||0,parts[1]||0,0,0);return d;
   }
   function getSummaryStatus(event,key,now){
-    const todayKey=fmtDate(now);
+    const todayKey=fmtDate(now),nowMs=now.getTime();
     if(event.done)return {code:"complete",label:"已完成",detail:"已确认完成"};
+    if(event.longTask){
+      const start=localDateTime(event.date,event.time),end=localDateTime(event.endDate||event.date,event.endTime||event.time);
+      if(nowMs<start.getTime())return {code:"upcoming",label:"",detail:"尚未开始"};
+      if(nowMs<end.getTime())return {code:"ongoing",label:"进行中",targetMs:end.getTime(),detail:"距离结束还有 "+formatSummaryDuration(end.getTime()-nowMs)};
+      return {code:"missed",label:"已错过",detail:"已超过结束时间，尚未确认完成"};
+    }
     if(!event.time){
       if(key<todayKey)return {code:"missed",label:"已错过",detail:"日期已过，尚未确认完成"};
-      if(key>todayKey)return {code:"upcoming",label:"即将开始",detail:"未设置开始时间"};
-      return {code:"no-time",label:"未设置开始时间",detail:"请补充开始时间"};
+      if(key>todayKey)return {code:"upcoming",label:"",detail:"尚未开始"};
+      return {code:"upcoming",label:"",detail:"未设置开始时间"};
     }
-    const start=localDateTime(key,event.time),startMs=start.getTime(),nowMs=now.getTime();
-    if(nowMs<startMs)return {code:"upcoming",label:"即将开始",targetMs:startMs,detail:"距离开始还有 "+formatSummaryDuration(startMs-nowMs)};
+    const start=localDateTime(key,event.time),startMs=start.getTime();
+    if(nowMs<startMs)return {code:"upcoming",label:"",targetMs:startMs,detail:"尚未开始"};
     if(event.endTime){
       const end=localDateTime(key,event.endTime),endMs=end.getTime();
-      if(nowMs<endMs)return {code:"ongoing",label:"正在进行中",targetMs:endMs,detail:"距离结束还有 "+formatSummaryDuration(endMs-nowMs)};
+      if(nowMs<endMs)return {code:"ongoing",label:"进行中",targetMs:endMs,detail:"距离结束还有 "+formatSummaryDuration(endMs-nowMs)};
       return {code:"missed",label:"已错过",detail:"已超过结束时间，尚未确认完成"};
     }
     return {code:"missed",label:"已错过",detail:"已超过开始时间，尚未确认完成"};
