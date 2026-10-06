@@ -27,6 +27,8 @@ jobs:
           test -s index.html
           test -s styles.css
           test -s app.js
+          test -s sw.js
+          test -s manifest.webmanifest
           node --check app.js
           grep -q 'name="viewport"' index.html
           echo "Basic checks passed."
