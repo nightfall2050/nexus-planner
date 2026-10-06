@@ -14,7 +14,7 @@
   function undo(){if(!state.undo){toast("暂无可撤销的操作");return;}const now=JSON.stringify(state.events);state.events=JSON.parse(state.undo);state.undo=now;save();render();toast("已撤销上一步；再次点击可恢复。");}
   function toast(message){const el=$("toast");el.textContent=message;el.classList.add("show");clearTimeout(state.toastTimer);state.toastTimer=setTimeout(()=>el.classList.remove("show"),3000);}
   function id(){return "evt-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,8);}
-  function occurs(e,key){if(key<e.date)return false;const d=parseDate(key),start=parseDate(e.date);switch(e.repeat||"none"){case"none":return key===e.date;case"daily":return true;case"weekly":return d.getDay()===start.getDay();case"weekdays":return d.getDay()!==0&&d.getDay()!==6;case"monthly":return d.getDate()===start.getDate();default:return key===e.date;}}
+  function occurs(e,key){if(key<e.date)return false;if(Array.isArray(e.excludedDates)&&e.excludedDates.includes(key))return false;const d=parseDate(key),start=parseDate(e.date);switch(e.repeat||"none"){case"none":return key===e.date;case"daily":return true;case"weekly":return d.getDay()===start.getDay();case"weekdays":return d.getDay()!==0&&d.getDay()!==6;case"monthly":return d.getDate()===start.getDate();default:return key===e.date;}}
   function occurrenceEvents(key){return state.events.filter(e=>occurs(e,key)).map(e=>({...e,occurrenceDate:key,seriesId:e.id})).sort((a,b)=>(a.time||"99:99").localeCompare(b.time||"99:99"));}
   function monthEvents(y,m){const first=new Date(y,m,1),last=new Date(y,m+1,0),out=[];for(let d=1;d<=last.getDate();d++){const key=fmtDate(new Date(y,m,d));const ev=occurrenceEvents(key);out.push({key,day:d,ev,outside:false});}return {first,last,days:out};}
   function render(){renderCalendar();renderDay();renderProgress();checkReminders();}
@@ -40,8 +40,97 @@
   function showInfo(title,content){$("infoTitle").textContent=title;$("infoContent").innerHTML=content;$("infoDialog").showModal();}
   $("privacyBtn").addEventListener("click",()=>showInfo("隐私与使用说明",infoText));$("settingsBtn").addEventListener("click",()=>showInfo("设置与操作",'<h3>撤销上一步</h3><p>可使用键盘快捷键 Ctrl/⌘ + Z 撤销最近一次日程增删改或完成状态变更。撤销记录仅在当前页面会话中保留。</p>'+infoText));$("closeInfo").addEventListener("click",()=>$("infoDialog").close());$("okInfo").addEventListener("click",()=>$("infoDialog").close());
   document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="z"&&!$("eventDialog").open&&!$("infoDialog").open){e.preventDefault();undo();}});
-  function parseNatural(text){const raw=text.trim();if(!raw)return null;const now=new Date();let d=new Date(now.getFullYear(),now.getMonth(),now.getDate(),12);let matchedDate=false;const datePatterns=[[/今天|今日/,"today"],[/明天|明日/,"tomorrow"],[/后天/,"after"],[/大后天/,"after2"]];for(const [re,type] of datePatterns){if(re.test(raw)){matchedDate=true;if(type==="tomorrow")d.setDate(d.getDate()+1);if(type==="after")d.setDate(d.getDate()+2);if(type==="after2")d.setDate(d.getDate()+3);break;}}const explicit=raw.match(/(20\d{2})[年./-](\d{1,2})[月./-](\d{1,2})日?/);if(explicit){d=new Date(+explicit[1],+explicit[2]-1,+explicit[3],12);matchedDate=true;}const monthDay=raw.match(/(\d{1,2})月(\d{1,2})日?/);if(monthDay){d=new Date(now.getFullYear(),+monthDay[1]-1,+monthDay[2],12);matchedDate=true;}if(!matchedDate){const weekday=raw.match(/(?:周|星期)([一二三四五六日天])/);if(weekday){const map={一:1,二:2,三:3,四:4,五:5,六:6,日:0,天:0};let delta=(map[weekday[1]]-now.getDay()+7)%7;if(delta===0)delta=7;d.setDate(d.getDate()+delta);matchedDate=true;}}const tm=raw.match(/(?:上午|早上|中午|下午|晚上|傍晚)?\s*(\d{1,2})(?:[:：点时](\d{1,2})分?)?/);let time="";if(tm){let hour=+tm[1],minute=+(tm[2]||0);if(/下午|晚上|傍晚/.test(raw.slice(Math.max(0,tm.index-3),tm.index+tm[0].length))&&hour<12)hour+=12;if(/中午/.test(raw.slice(Math.max(0,tm.index-3),tm.index+tm[0].length))&&hour<11)hour+=12;if(hour<24&&minute<60&&(/点|时|:|：/.test(tm[0])||/上午|下午|晚上|早上|中午/.test(tm[0])))time=String(hour).padStart(2,"0")+":"+String(minute).padStart(2,"0");}let title=raw.replace(/今天|今日|明天|明日|后天|大后天|20\d{2}[年./-]\d{1,2}[月./-]\d{1,2}日?|\d{1,2}月\d{1,2}日?|(?:周|星期)[一二三四五六日天]/g," ").replace(/(?:上午|早上|中午|下午|晚上|傍晚)?\s*\d{1,2}(?:[:：点时]\d{1,2}分?)?/g," ").replace(/提前\s*\d+\s*分钟?提醒/g," ").replace(/地点[是为：:]?\s*[^，,。]+/g," ").replace(/在([^，,。]+)(?:开|做|参加|进行)/g,"$2").replace(/[，,。；;]/g," ").replace(/\s+/g," ").trim();if(!title)title=raw;const rm=raw.match(/提前\s*(\d+)\s*分钟?提醒/);const loc=raw.match(/地点[是为：:]?\s*([^，,。]+)/);return {title,date:fmtDate(d),time,reminder:rm?Math.min(1440,+rm[1]):0,location:loc?loc[1].trim():"",repeat:/每周|每个星期/.test(raw)?"weekly":/每天|每日/.test(raw)?"daily":/每个工作日|工作日/.test(raw)?"weekdays":"none"};}
-  $("parseBtn").addEventListener("click",()=>{const raw=$("quickText").value,parsed=parseNatural(raw);if(!parsed){toast("先写下你想安排的事情");return;}const area=$("draftArea");area.hidden=false;area.innerHTML='<h4>待确认草稿</h4><p><strong>事项：</strong>'+esc(parsed.title)+'</p><p><strong>日期：</strong>'+esc(parsed.date)+'</p><p><strong>时间：</strong>'+esc(parsed.time||"未识别，请保存前填写")+'</p><p><strong>地点：</strong>'+esc(parsed.location||"未识别")+'</p><p><strong>重复：</strong>'+esc(repeatLabel(parsed.repeat)||"不重复")+'</p><p><strong>提醒：</strong>'+esc(parsed.reminder?parsed.reminder+" 分钟前":"关闭")+'</p><p class="notice">这是规则匹配生成的草稿，不是 AI 理解结果。请核对所有字段，特别是时间、地点和重复规则。</p><div class="draft-buttons"><button class="secondary-btn" id="discardDraft">放弃</button><button class="primary-btn" id="useDraft">检查并编辑</button></div>';$("discardDraft").addEventListener("click",()=>{area.hidden=true;area.innerHTML="";});$("useDraft").addEventListener("click",()=>{openEditor({...parsed,id:""});$("eventId").value="";$("eventTitle").value=parsed.title;$("eventDate").value=parsed.date;$("eventTime").value=parsed.time;$("eventReminder").value=String(parsed.reminder);$("eventLocation").value=parsed.location;$("eventRepeat").value=parsed.repeat;});});
+  function parseTargetDate(raw) {
+    const now = new Date();
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12);
+    let matched = false;
+    if (/大后天/.test(raw)) { d.setDate(d.getDate()+3); matched=true; }
+    else if (/后天/.test(raw)) { d.setDate(d.getDate()+2); matched=true; }
+    else if (/明天|明日/.test(raw)) { d.setDate(d.getDate()+1); matched=true; }
+    else if (/今天|今日/.test(raw)) matched=true;
+    const full = raw.match(/(20\\d{2})[年./-](\\d{1,2})[月./-](\\d{1,2})日?/);
+    const md = raw.match(/(\\d{1,2})月(\\d{1,2})日?/);
+    if (full) { d.setFullYear(+full[1], +full[2]-1, +full[3]); matched=true; }
+    else if (md) { d.setFullYear(now.getFullYear(), +md[1]-1, +md[2]); matched=true; }
+    const wd = raw.match(/(下周|下星期|这周|本周|周|星期)([一二三四五六日天])/);
+    if (wd && !full && !md && !/今天|今日|明天|明日|后天|大后天/.test(raw)) {
+      const map={一:1,二:2,三:3,四:4,五:5,六:6,日:0,天:0};
+      let delta=(map[wd[2]]-now.getDay()+7)%7;
+      if (/下周|下星期/.test(wd[1])) delta += 7;
+      else if (delta===0) delta=7;
+      d.setDate(d.getDate()+delta); matched=true;
+    }
+    return {date:fmtDate(d),matched};
+  }
+  function parseNatural(text) {
+    const raw=text.trim(); if(!raw)return null;
+    const target=parseTargetDate(raw);
+    const tm=raw.match(/(上午|早上|中午|下午|晚上|傍晚)?\\s*(\\d{1,2})(?:[:：点时](\\d{1,2})分?)?/);
+    let time="";
+    if(tm) {
+      let hour=+tm[2], minute=+(tm[3]||0);
+      if(/下午|晚上|傍晚/.test(tm[1]||"")&&hour<12)hour+=12;
+      if(/中午/.test(tm[1]||"")&&hour<11)hour+=12;
+      if(hour<24&&minute<60&&(/点|时|:|：/.test(tm[0])||tm[1]))time=String(hour).padStart(2,"0")+":"+String(minute).padStart(2,"0");
+    }
+    const locMatch=raw.match(/(?:地点|位置|在)\\s*(?:是|为|：|:)?\\s*([^，,。；;]+?)(?=提前\\s*\\d+\\s*分钟?提醒|\\s*(?:开会|上课|会议|上班|学习|吃饭|运动|健身|看医生|复诊)|[，,。；;]|$)/);
+    let location=locMatch?locMatch[1].trim():"";
+    if(location && /^(明天|今天|后天|大后天|下周|本周|这周|周[一二三四五六日天]|星期[一二三四五六日天]|上午|下午|晚上|早上|中午|傍晚)/.test(location)) location="";
+    const rm=raw.match(/提前\\s*(\\d+)\\s*分钟?提醒/);
+    const deleteIntent=/(删除|删掉|取消|移除|不要了|不再安排|去掉)/.test(raw);
+    const editIntent=/(修改|改成|改为|调整|更改|把.+换成)/.test(raw);
+    const repeat=/每周|每个星期/.test(raw)?"weekly":/每天|每日/.test(raw)?"daily":/每个工作日|工作日/.test(raw)?"weekdays":"none";
+    let title=raw
+      .replace(/请帮我|请|帮我|安排一下|安排|新增|添加|创建|新建|删除|删掉|取消|移除|不要了|不再安排|去掉|修改|调整|更改|把|下周|下星期|这周|本周|今天|今日|明天|明日|后天|大后天|20\\d{2}[年./-]\\d{1,2}[月./-]\\d{1,2}日?|\\d{1,2}月\\d{1,2}日?|(?:周|星期)[一二三四五六日天]/g," ")
+      .replace(/(上午|早上|中午|下午|晚上|傍晚)?\\s*\\d{1,2}(?:[:：点时]\\d{1,2}分?)?/g," ")
+      .replace(/提前\\s*\\d+\\s*分钟?提醒/g," ")
+      .replace(/(?:地点|位置|在)\\s*(?:是|为|：|:)?\\s*[^，,。；;]+/g," ")
+      .replace(/[，,。；;]/g," ").replace(/\\s+/g," ").trim();
+    title=title.replace(/^(的|一下|下|上|把)\\s*/,"").replace(/(这个日程|这条日程|这个安排|的日程|的课)$/,"").trim();
+    return {action:deleteIntent?"delete":editIntent?"edit":"create",title,date:target.date,time,reminder:rm?Math.min(1440,+rm[1]):0,location,repeat,raw};
+  }
+  function showDraft(html) { const area=$("draftArea"); area.hidden=false; area.innerHTML=html; }
+  function safeDeleteOccurrence(eventId,key) {
+    const e=state.events.find(x=>x.id===eventId); if(!e)return;
+    const recurring=(e.repeat||"none")!=="none";
+    const message=recurring
+      ? "只删除 "+key+" 这一次的“"+e.title+"”，保留其他每周/重复安排吗？"
+      : "确定删除“"+e.title+"”（"+key+"）吗？";
+    if(!confirm(message))return;
+    snapshot();
+    if(recurring) {
+      e.excludedDates=Array.isArray(e.excludedDates)?e.excludedDates:[];
+      if(!e.excludedDates.includes(key))e.excludedDates.push(key);
+    } else state.events=state.events.filter(x=>x.id!==eventId);
+    save(); state.selected=key; const d=parseDate(key); state.cursor=new Date(d.getFullYear(),d.getMonth(),1); render();
+    $("draftArea").hidden=true; $("draftArea").innerHTML="";
+    toast(recurring?"已取消这一天的重复日程，其他日期保留":"日程已删除");
+  }
+  $("parseBtn").addEventListener("click",()=>{
+    const raw=$("quickText").value,parsed=parseNatural(raw);
+    if(!parsed){toast("先写下你想安排的事情");return;}
+    if(parsed.action==="delete") {
+      const candidates=occurrenceEvents(parsed.date).filter(e=>{
+        const needle=parsed.title.replace(/\\s+/g,"").toLowerCase();
+        const title=e.title.replace(/\\s+/g,"").toLowerCase();
+        return needle.length>=1 && (title.includes(needle)||needle.includes(title)||needle.split("").filter(ch=>title.includes(ch)).length>=Math.min(2,needle.length));
+      });
+      if(!candidates.length) {
+        showDraft('<h4>未找到可删除的日程</h4><p>目标日期：'+esc(parsed.date)+'</p><p>系统没有找到明确匹配的日程，因此没有删除任何内容，也不会把这句话保存成待办。</p><p>请补充原日程的名称，例如“删除下周一的英语课”。</p>');
+        return;
+      }
+      showDraft('<h4>确认要删除哪一项</h4><p>目标日期：'+esc(parsed.date)+'。请核对匹配结果；系统不会自动删除。</p>'+candidates.map(e=>'<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.time||"无指定时间")+' · '+esc(e.repeat!=="none"?repeatLabel(e.repeat):"单次日程")+(e.location?" · "+esc(e.location):"")+'</p><button type="button" class="secondary-btn" data-delete-id="'+esc(e.id)+'" data-delete-date="'+esc(parsed.date)+'">删除这一次</button></div>').join(""));
+      $("draftArea").querySelectorAll("[data-delete-id]").forEach(btn=>btn.addEventListener("click",()=>safeDeleteOccurrence(btn.dataset.deleteId,btn.dataset.deleteDate)));
+      return;
+    }
+    if(parsed.action==="edit") {
+      showDraft('<h4>修改现有日程</h4><p>为避免改错日程，目前不会把“修改/调整”指令直接新建成待办。请先在对应日程卡片上点击编辑；自然语言修改目标的自动匹配尚未确认。</p>');
+      return;
+    }
+    showDraft('<h4>待确认草稿</h4><p><strong>事项：</strong>'+esc(parsed.title||"请补充事项名称")+'</p><p><strong>日期：</strong>'+esc(parsed.date)+'</p><p><strong>时间：</strong>'+esc(parsed.time||"未识别，请保存前填写")+'</p><p><strong>地点：</strong>'+esc(parsed.location||"未指定")+'</p><p><strong>重复：</strong>'+esc(repeatLabel(parsed.repeat)||"不重复")+'</p><p><strong>提醒：</strong>'+esc(parsed.reminder?parsed.reminder+" 分钟前":"关闭")+'</p><p class="notice">请检查标题、日期、时间、地点与重复规则后再保存。</p><div class="draft-buttons"><button class="secondary-btn" id="discardDraft">放弃</button><button class="primary-btn" id="useDraft">检查并编辑</button></div>');
+    $("discardDraft").addEventListener("click",()=>{$("draftArea").hidden=true;$("draftArea").innerHTML="";});
+    $("useDraft").addEventListener("click",()=>{openEditor({...parsed,id:""});$("eventId").value="";$("eventTitle").value=parsed.title;$("eventDate").value=parsed.date;$("eventTime").value=parsed.time;$("eventReminder").value=String(parsed.reminder);$("eventLocation").value=parsed.location;$("eventRepeat").value=parsed.repeat;});
+  });
   if ("serviceWorker" in navigator && location.protocol === "https:") {
     window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
   }
