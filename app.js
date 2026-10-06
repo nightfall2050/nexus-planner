@@ -229,7 +229,7 @@
     if(overlay.hidden)return;
     const now=new Date();
     overlay.querySelectorAll(".summary-event-row[data-live='true']").forEach(row=>{
-      const event=state.events.find(e=>e.id===row.dataset.eventId);if(!event)return;
+      const baseEvent=state.events.find(e=>e.id===row.dataset.eventId);if(!baseEvent)return;const event={...baseEvent,...(baseEvent.overrides&&baseEvent.overrides[row.dataset.occurrenceDate]||{})};
       const info=getSummaryStatus(event,row.dataset.occurrenceDate,now);
       const status=row.querySelector("[data-summary-status]"),detail=row.querySelector("[data-summaryDetail], [data-summary-detail]");
       status.className="summary-status status-badge-"+info.code;status.textContent=info.label;
