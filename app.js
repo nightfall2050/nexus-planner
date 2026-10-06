@@ -70,6 +70,42 @@
     }
     return {date:fmtDate(d),matched};
   }
+  function parseTimeRange(input) {
+    const source=String(input||"");
+    const re=/(上午|早上|中午|下午|晚上|傍晚)?\s*(\d{1,2})(?:[:：点时](\d{1,2})分?)?/g;
+    const tokens=[]; let m;
+    while((m=re.exec(source))!==null) {
+      if(!m[1]&&!/[:：点时]/.test(m[0])) continue;
+      const rawHour=Number(m[2]), minute=Number(m[3]||0);
+      if(rawHour>23||minute>59) continue;
+      let hour=rawHour, period=m[1]||(tokens.length?tokens[0].period:"");
+      if(/下午|晚上|傍晚/.test(period)&&hour<12)hour+=12;
+      if(/上午|早上/.test(period)&&hour===12)hour=0;
+      if(/中午/.test(period)&&hour<11)hour+=12;
+      tokens.push({index:m.index,end:re.lastIndex,hour,minute,rawHour,period:m[1]||""});
+    }
+    if(!tokens.length)return {time:"",endTime:""};
+    const format=t=>String(t.hour).padStart(2,"0")+":"+String(t.minute).padStart(2,"0");
+    let endTime="";
+    if(tokens.length>1) {
+      const first=tokens[0], second=tokens[1];
+      const between=source.slice(first.end,second.index);
+      const after=source.slice(second.end);
+      const isRange=/(到|至|[-—~～])/.test(between)||/(结束|截止|完毕)/.test(after)||/(结束时间|截止时间)/.test(between);
+      if(isRange) {
+        let endHour=second.hour;
+        if(!second.period&&first.period) {
+          if(/下午|晚上|傍晚/.test(first.period)&&second.rawHour<12)endHour=second.rawHour+12;
+          else if(/上午|早上/.test(first.period)&&second.rawHour===12)endHour=0;
+        }
+        if(!second.period&&first.hour>=12&&second.rawHour<12&&endHour<=first.hour)endHour=second.rawHour+12;
+        if(endHour<24&&(endHour*60+second.minute)>(first.hour*60+first.minute)) {
+          endTime=String(endHour).padStart(2,"0")+":"+String(second.minute).padStart(2,"0");
+        }
+      }
+    }
+    return {time:format(tokens[0]),endTime};
+  }
   function parseNatural(text) {
     const raw=text.trim(); if(!raw)return null;
     const editMarker=raw.match(/(?:改为|改成|改到|调整到|更改到|设置为|设定为|换成)/);
@@ -77,14 +113,8 @@
     const sourceText=isEdit&&editMarker?raw.slice(0,editMarker.index):raw;
     const target=parseTargetDate(sourceText);
     const timeText=isEdit&&editMarker?raw.slice(editMarker.index+editMarker[0].length):raw;
-    const tm=timeText.match(/(上午|早上|中午|下午|晚上|傍晚)?\s*(\d{1,2})(?:[:：点时](\d{1,2})分?)?/);
-    let time="";
-    if(tm) {
-      let hour=+tm[2], minute=+(tm[3]||0);
-      if(/下午|晚上|傍晚/.test(tm[1]||"")&&hour<12)hour+=12;
-      if(/中午/.test(tm[1]||"")&&hour<11)hour+=12;
-      if(hour<24&&minute<60&&(/点|时|:|：/.test(tm[0])||tm[1]))time=String(hour).padStart(2,"0")+":"+String(minute).padStart(2,"0");
-    }
+    const timeParts=parseTimeRange(timeText);
+    const time=timeParts.time, endTime=timeParts.endTime;
     const locMatch=raw.match(/(?:地点|位置)\s*(?:是|为|：|:)?\s*([^，,。；;]+)/) || raw.match(/在\s*([^，,。；;]+?)\s*(?=开|上|参加|进行|学习|吃饭|运动|健身|看医生|复诊|提前|$)/);
     let location=locMatch?locMatch[1].trim():"";
     if(location && /^(明天|今天|后天|大后天|下周|本周|这周|周[一二三四五六日天]|星期[一二三四五六日天]|上午|下午|晚上|早上|中午|傍晚)/.test(location)) location="";
@@ -96,10 +126,10 @@
       .replace(/请帮我|请|帮我|安排一下|安排|新增|添加|创建|新建|删除|删掉|取消|移除|不要了|不再安排|去掉|修改|调整|更改|把|下周|下星期|这周|本周|今天|今日|明天|明日|后天|大后天|20\d{2}[年./-]\d{1,2}[月./-]\d{1,2}日?|\d{1,2}月\d{1,2}日?|(?:周|星期)[一二三四五六日天]/g," ")
       .replace(/(上午|早上|中午|下午|晚上|傍晚)?\s*\d{1,2}(?:[:：点时]\d{1,2}分?)?/g," ")
       .replace(/提前\s*\d+\s*分钟?提醒/g," ")
-      .replace(/(?:地点|位置)\s*(?:是|为|：|:)?\s*[^，,。；;]+/g," ").replace(/在\s*[^，,。；;]+?\s*(?=开|上|参加|进行|学习|吃饭|运动|健身|看医生|复诊|提前|$)/g," ")
+      .replace(/(?:地点|位置)\s*(?:是|为|：|:)?\s*[^，,。；;]+/g," ").replace(/在\s*[^，,。；;]+?\s*(?=开|上|参加|进行|学习|吃饭|运动|健身|看医生|复诊|提前|$)/g," ").replace(/(?:从|到|至|开始|结束时间?|截止时间?)/g," ")
       .replace(/[，,。；;]/g," ").replace(/\s+/g," ").trim();
     title=title.replace(/^(的|一下|下|上|把)\s*/,"").replace(/(这个日程|这条日程|这个安排|的日程|的课)$/,"").trim();
-    return {action:deleteIntent?"delete":editIntent?"edit":"create",title,date:target.date,time,reminder:rm?Math.min(1440,+rm[1]):0,location,repeat,raw};
+    return {action:deleteIntent?"delete":editIntent?"edit":"create",title,date:target.date,time,endTime,reminder:rm?Math.min(1440,+rm[1]):0,location,repeat,countdownEnabled:!!endTime&&/(自动倒计时|开始时倒计时|开始自动倒计时)/.test(raw),raw};
   }
   function showDraft(html) { const area=$("draftArea"); area.hidden=false; area.innerHTML=html; }
   function safeDeleteOccurrence(eventId,key) {
