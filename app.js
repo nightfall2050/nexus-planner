@@ -21,7 +21,8 @@
   function occurrenceEvents(key){return state.events.filter(e=>occurs(e,key)).map(e=>({...e,...(e.overrides&&e.overrides[key]||{}),occurrenceDate:key,seriesId:e.id,repeat:e.repeat||"none"})).sort((a,b)=>(a.time||"99:99").localeCompare(b.time||"99:99"));}
   function monthEvents(y,m){const first=new Date(y,m,1),last=new Date(y,m+1,0),out=[];for(let d=1;d<=last.getDate();d++){const key=fmtDate(new Date(y,m,d));const ev=occurrenceEvents(key);out.push({key,day:d,ev,outside:false});}return {first,last,days:out};}
   const INTERFACE_MODE_KEY="nexus-planner-interface-mode-v1";
-  let interfaceMode="study";
+  // Preserve the existing calendar workflow for current users; Study Desk is opt-in.
+  let interfaceMode="classic";
   function applyInterfaceMode(mode,persist=true){
     interfaceMode=mode==="classic"?"classic":"study";
     document.body.classList.toggle("study-mode",interfaceMode==="study");
