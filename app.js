@@ -56,8 +56,7 @@
     if (wd && !full && !md && !/今天|今日|明天|明日|后天|大后天/.test(raw)) {
       const map={一:1,二:2,三:3,四:4,五:5,六:6,日:0,天:0};
       let delta=(map[wd[2]]-now.getDay()+7)%7;
-      if (/下周|下星期/.test(wd[1])) delta += 7;
-      else if (delta===0) delta=7;
+      if (delta===0) delta=7;
       d.setDate(d.getDate()+delta); matched=true;
     }
     return {date:fmtDate(d),matched};
@@ -73,7 +72,7 @@
       if(/中午/.test(tm[1]||"")&&hour<11)hour+=12;
       if(hour<24&&minute<60&&(/点|时|:|：/.test(tm[0])||tm[1]))time=String(hour).padStart(2,"0")+":"+String(minute).padStart(2,"0");
     }
-    const locMatch=raw.match(/(?:地点|位置|在)\s*(?:是|为|：|:)?\s*([^，,。；;]+?)(?=提前\s*\d+\s*分钟?提醒|\s*(?:开会|上课|会议|上班|学习|吃饭|运动|健身|看医生|复诊)|[，,。；;]|$)/);
+    const locMatch=raw.match(/(?:地点|位置)\s*(?:是|为|：|:)?\s*([^，,。；;]+)/) || raw.match(/在\s*([^，,。；;]+?)\s*(?=开|上|参加|进行|学习|吃饭|运动|健身|看医生|复诊|提前|$)/);
     let location=locMatch?locMatch[1].trim():"";
     if(location && /^(明天|今天|后天|大后天|下周|本周|这周|周[一二三四五六日天]|星期[一二三四五六日天]|上午|下午|晚上|早上|中午|傍晚)/.test(location)) location="";
     const rm=raw.match(/提前\s*(\d+)\s*分钟?提醒/);
@@ -84,7 +83,7 @@
       .replace(/请帮我|请|帮我|安排一下|安排|新增|添加|创建|新建|删除|删掉|取消|移除|不要了|不再安排|去掉|修改|调整|更改|把|下周|下星期|这周|本周|今天|今日|明天|明日|后天|大后天|20\d{2}[年./-]\d{1,2}[月./-]\d{1,2}日?|\d{1,2}月\d{1,2}日?|(?:周|星期)[一二三四五六日天]/g," ")
       .replace(/(上午|早上|中午|下午|晚上|傍晚)?\s*\d{1,2}(?:[:：点时]\d{1,2}分?)?/g," ")
       .replace(/提前\s*\d+\s*分钟?提醒/g," ")
-      .replace(/(?:地点|位置|在)\s*(?:是|为|：|:)?\s*[^，,。；;]+/g," ")
+      .replace(/(?:地点|位置)\s*(?:是|为|：|:)?\s*[^，,。；;]+/g," ").replace(/在\s*[^，,。；;]+?\s*(?=开|上|参加|进行|学习|吃饭|运动|健身|看医生|复诊|提前|$)/g," ")
       .replace(/[，,。；;]/g," ").replace(/\s+/g," ").trim();
     title=title.replace(/^(的|一下|下|上|把)\s*/,"").replace(/(这个日程|这条日程|这个安排|的日程|的课)$/,"").trim();
     return {action:deleteIntent?"delete":editIntent?"edit":"create",title,date:target.date,time,reminder:rm?Math.min(1440,+rm[1]):0,location,repeat,raw};
