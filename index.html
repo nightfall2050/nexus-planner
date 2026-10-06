@@ -7,7 +7,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <meta name="description" content="NEXUS Planner — 隐私优先的个人日程与智能日历。">
   <title>NEXUS Planner — Personal Command Center</title>
-  <link rel="stylesheet" href="./styles.css?v=5">
+  <link rel="stylesheet" href="./styles.css?v=6">
   <script>
     window.addEventListener("error", function (event) {
       try {
@@ -38,7 +38,7 @@
       } catch (_) {}
     });
   </script>
-  <script src="./app.js?v=8" defer></script>
+  <script src="./app.js?v=9" defer></script>
 </head>
 <body>
   <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
@@ -55,6 +55,13 @@
       <div class="view-switch"><button class="view-btn active" data-view="month">月视图</button><button class="view-btn" data-view="day">单日</button></div>
       <div class="month-nav"><button id="prevBtn" class="icon-button" aria-label="上一个">‹</button><h2 id="periodTitle">—</h2><button id="nextBtn" class="icon-button" aria-label="下一个">›</button><button id="todayBtn" class="today-btn">今天</button></div>
       <button class="primary-btn" id="addBtn"><span>＋</span> 新建日程</button>
+    </section>
+    <section class="panel search-panel" aria-label="搜索日程">
+      <div class="panel-heading"><div><p class="eyebrow">FIND YOUR PLANS</p><h3>搜索日程</h3></div><span class="search-symbol" aria-hidden="true">⌕</span></div>
+      <label class="field-label" for="eventSearch">搜索标题、地点、备注或日期</label>
+      <div class="search-input-row"><input id="eventSearch" type="search" placeholder="例如：项目会、食堂、会议室、2026-10-06" autocomplete="off"><button type="button" id="clearSearchBtn" class="secondary-btn">清除</button></div>
+      <p class="muted small" id="searchHint">输入关键词即可搜索全部日程；多个关键词可用空格分隔。</p>
+      <div id="searchResults" class="search-results" hidden aria-live="polite"></div>
     </section>
     <section class="dashboard">
       <div class="calendar-panel panel">
