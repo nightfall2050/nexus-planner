@@ -123,7 +123,7 @@
       return;
     }
     if(parsed.action==="edit") {
-      const compact = value => String(value || "").replace(/[\\s的这条个]/g, "").toLowerCase();
+      const compact = value => String(value || "").replace(/[\s的这条个]/g, "").toLowerCase();
       const rawCompact = compact(raw);
       // Match only events whose actual title is explicitly present in the user's sentence.
       const candidates = occurrenceEvents(parsed.date).filter(e => {
@@ -134,7 +134,7 @@
         showDraft('<h4>未找到明确匹配的日程</h4><p>目标日期：'+esc(parsed.date)+'</p><p>请在指令中写出已有日程的名称，例如“把项目会的地点设置为食堂”或“把英语课改到下午 4 点”。没有任何内容被修改，也不会新建待办。</p>');
         return;
       }
-      const locationChange = raw.match(/(?:地点|位置)\\s*(?:(?:设置|设定|改|调整|更改)\\s*(?:为|成|到)|(?:设置|设定)为|为|是|改成|改为|调整为|更改为)\\s*([^，,。；;]+)/);
+      const locationChange = raw.match(/(?:地点|位置)\s*(?:(?:设置|设定|改|调整|更改)\s*(?:为|成|到)|(?:设置|设定)为|为|是|改成|改为|调整为|更改为)\s*([^，,。；;]+)/);
       const renameMatch = raw.match(/(?:改名为|名称改为|标题改为)([^，,。；;]+)/);
       showDraft('<h4>请选择要修改的日程</h4><p>目标日期：'+esc(parsed.date)+'。选择后会打开编辑窗口，核对并保存才会生效。重复日程会修改整个系列。</p>'+candidates.map(e=>'<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.time||"无指定时间")+' · '+esc(e.repeat!=="none"?"重复系列":"单次日程")+(e.location?" · "+esc(e.location):"")+'</p><button type="button" class="secondary-btn" data-edit-id="'+esc(e.id)+'">选择并修改</button></div>').join(""));
       $("draftArea").querySelectorAll("[data-edit-id]").forEach(btn=>btn.addEventListener("click",()=>{
