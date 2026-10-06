@@ -113,8 +113,10 @@
     const title=$("eventTitle").value.trim(),date=$("eventDate").value,endDate=$("eventEndDate").value,time=$("eventTime").value,endTime=$("eventEnd").value,reminder=Number($("eventReminder").value),longTask=$("longTaskMode").value==="true",countdownEnabled=!!$("eventCountdownEnabled").checked&&!!endTime,specialReminder=!!$("eventSpecialReminder").checked;
     const studyData=$("eventStudyEnabled").checked?{subject:$("eventStudySubject").value.trim(),estimatedMinutes:Math.max(5,Math.min(1440,Number($("eventStudyMinutes").value)||30)),priority:Math.max(1,Math.min(3,Number($("eventStudyPriority").value)||1))}:undefined;
     if(!title||!date){toast("请填写事项名称和日期");return;}
+    if(longTask&&(!endDate||endDate<date)){toast("长期任务的结束日期不能早于开始日期");return;}
     if(endTime&&!time){toast("设置结束时间前，请先填写开始时间");return;}
-    if(time&&endTime&&endTime<=time){toast("结束时间必须晚于开始时间");return;}
+    if(!longTask&&time&&endTime&&endTime<=time){toast("结束时间必须晚于开始时间");return;}
+    if(longTask&&date===endDate&&time&&endTime&&endTime<=time){toast("同一天的结束时间必须晚于开始时间");return;}
     if(countdownEnabled&&!time){toast("自动倒计时需要开始时间");return;}
     const oldId=$("eventId").value,previous=oldId?state.events.find(e=>e.id===oldId):null;
     const context=state.occurrenceEditContext;
@@ -132,7 +134,7 @@
     }
     if(context&&context.mode==="series"&&previous){/* retain the original series start date */}
     state.occurrenceEditContext=null;
-    const timingChanged=!!previous&&(["date","time","endTime","reminder"].some(k=>String(previous[k]||"")!==String(({date,time,endTime,reminder})[k]||""))||!!previous.countdownEnabled!==countdownEnabled);
+    const timingChanged=!!previous&&(["date","endDate","time","endTime","reminder"].some(k=>String(previous[k]||"")!==String(({date,time,endTime,reminder})[k]||""))||!!previous.countdownEnabled!==countdownEnabled);
     const reminderRevision=(previous?Number(previous.reminderRevision||0):0)+(timingChanged?1:0);
     const item={id:oldId||id(),title,date:context&&context.mode==="series"&&previous?previous.date:date,...(longTask?{longTask:true,endDate}:{}),time,endTime,reminder,reminderRevision,countdownEnabled,specialReminder,location:$("eventLocation").value.trim(),notes:$("eventNotes").value.trim(),repeat:longTask?"none":$("eventRepeat").value,done:previous?!!previous.done:false,excludedDates:Array.isArray(previous?.excludedDates)?previous.excludedDates:[],overrides:context&&context.mode==="series"?{}:(previous?.overrides||{}),study:studyData};
     if(timingChanged&&oldId){const affectedIds=context&&context.mode==="series"&&Array.isArray(context.matchingIds)&&context.matchingIds.length?context.matchingIds:[oldId];const affected=new Set(affectedIds);state.reminderQueue=state.reminderQueue.filter(entry=>!affected.has(entry.event.id));for(const key of state.reminderSnoozed.keys())if(affectedIds.some(id=>key.startsWith(id+"@")))state.reminderSnoozed.delete(key);}
