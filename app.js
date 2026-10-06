@@ -52,9 +52,9 @@
     const md = raw.match(/(\d{1,2})月(\d{1,2})日?/);
     if (full) { d.setFullYear(+full[1], +full[2]-1, +full[3]); matched=true; }
     else if (md) { d.setFullYear(now.getFullYear(), +md[1]-1, +md[2]); matched=true; }
-    const wd = raw.match(/(下周|下星期|这周|本周|周|星期)([一二三四五六日天])/);
+    const wd = raw.match(/(下周|下星期|这周|本周|周|星期)([一二三四五六日天1-7])/);
     if (wd && !full && !md && !/今天|今日|明天|明日|后天|大后天/.test(raw)) {
-      const map={一:1,二:2,三:3,四:4,五:5,六:6,日:0,天:0};
+      const map={一:1,二:2,三:3,四:4,五:5,六:6,日:0,天:0,"1":1,"2":2,"3":3,"4":4,"5":5,"6":6,"7":0};
       let delta=(map[wd[2]]-now.getDay()+7)%7;
       if (delta===0) delta=7;
       d.setDate(d.getDate()+delta); matched=true;
@@ -125,10 +125,10 @@
     if(parsed.action==="edit") {
       const compact = value => String(value || "").replace(/[\\s的这条个]/g, "").toLowerCase();
       const rawCompact = compact(raw);
-      const destinationMatch = raw.match(/(?:改到|移到|调整到|更改到|日期改为|日期改成)\\s*(下周|下星期|这周|本周|周|星期)([一二三四五六日天])/);
+      const destinationMatch = raw.match(/(?:改到|移到|调整到|更改到|日期改为|日期改成)\\s*(下周|下星期|这周|本周|周|星期)([一二三四五六日天1-7])/);
       let destinationDate = "";
       if (destinationMatch) {
-        const now = new Date(), map = {一:1,二:2,三:3,四:4,五:5,六:6,日:0,天:0};
+        const now = new Date(), map = {一:1,二:2,三:3,四:4,五:5,六:6,日:0,天:0,"1":1,"2":2,"3":3,"4":4,"5":5,"6":6,"7":0};
         const offset = map[destinationMatch[2]]===0 ? 6 : map[destinationMatch[2]]-1;
         let monday;
         if (/下周|下星期/.test(destinationMatch[1])) monday = new Date(now.getFullYear(),now.getMonth(),now.getDate()-((now.getDay()+6)%7)+7,12);
