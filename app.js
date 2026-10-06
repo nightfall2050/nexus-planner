@@ -580,7 +580,8 @@
     const parsed=parseNatural(raw);
     const dateMatch=parseTargetDate(raw);
     const keyword=raw.replace(/请帮我|请|帮我|把|给|项目|日程|长期任务|开启|打开|启用|开始|启动|取消|关闭|停用|禁用|不要|自动|倒计时|并且|以及|的|一下|改为|设为/g," ").replace(/今天|今日|明天|明日|后天|大后天|下周|下星期|这周|本周|(?:周|星期)[一二三四五六日天1-7]/g," ").replace(/(上午|早上|中午|下午|晚上|傍晚)?\s*\d{1,2}(?:(?:[:：]\d{1,2})|(?:[点时](?:\d{1,2}分?|半)?))?/g," ").replace(/\s+/g," ").trim();
-    const hasExplicitDate=/(今天|今日|明天|明日|后天|大后天|下周|下星期|这周|本周|(?:周|星期)[一二三四五六日天1-7]|20\\d{2}[年./-]\\d{1,2}[月./-]\\d{1,2}|\\d{1,2}月\\d{1,2}日?)/.test(raw);\n    const date=hasExplicitDate&&dateMatch.matched?dateMatch.date:"";
+    const hasExplicitDate=/(今天|今日|明天|明日|后天|大后天|下周|下星期|这周|本周|(?:周|星期)[一二三四五六日天1-7]|20\\d{2}[年./-]\\d{1,2}[月./-]\\d{1,2}|\\d{1,2}月\\d{1,2}日?)/.test(raw);
+    const date=hasExplicitDate&&dateMatch.matched?dateMatch.date:"";
     let candidates=state.events.filter(e=>(!longOnly||e.longTask)&&(!date||(e.longTask?e.date<=date&&(e.endDate||e.date)>=date:e.date===date)));
     if(keyword.length>1)candidates=candidates.filter(e=>e.title.toLowerCase().includes(keyword.toLowerCase()));
     if(!candidates.length){showDraft('<h4>没有找到目标事项</h4><p>请补充项目名称，或写明日期；系统不会删除或修改任何内容。</p>');return true;}
