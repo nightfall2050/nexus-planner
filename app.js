@@ -105,6 +105,42 @@
     $("draftArea").hidden=true; $("draftArea").innerHTML="";
     toast(recurring?"已取消这一天的重复日程，其他日期保留":"日程已删除");
   }
+  function renderSearchResults() {
+    const input = $("eventSearch"), area = $("searchResults"), hint = $("searchHint");
+    const query = input.value.trim().toLocaleLowerCase();
+    area.innerHTML = "";
+    if (!query) { area.hidden = true; hint.textContent = "输入关键词即可搜索全部日程；多个关键词可用空格分隔。"; return; }
+    const terms = query.split(/\s+/).filter(Boolean);
+    const results = state.events.filter(e => {
+      const d = parseDate(e.date);
+      const dateText = e.date + " " + d.getFullYear()+"年"+(d.getMonth()+1)+"月"+d.getDate()+"日";
+      const haystack = [e.title,e.location,e.notes,e.date,dateText,e.time,e.repeat].join(" ").toLocaleLowerCase();
+      return terms.every(term => haystack.includes(term));
+    }).sort((a,b) => a.date.localeCompare(b.date) || (a.time||"99:99").localeCompare(b.time||"99:99"));
+    area.hidden = false;
+    hint.textContent = results.length ? "找到 "+results.length+" 条日程。点击任一结果可打开编辑窗口。" : "没有找到匹配的日程。试试标题、地点、备注或日期关键词。";
+    if (!results.length) { area.innerHTML = '<div class="search-empty">没有找到匹配项，请检查关键词后重试。</div>'; return; }
+    results.slice(0,50).forEach(e => {
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.className = "search-result";
+      const main = document.createElement("span"); main.className = "search-result-main";
+      const title = document.createElement("span"); title.className = "search-result-title"; title.textContent = e.title;
+      const meta = document.createElement("span"); meta.className = "search-result-meta";
+      meta.textContent = e.date + (e.time ? " · "+e.time : " · 未设时间") + (e.location ? " · "+e.location : "") + ((e.repeat||"none")!=="none" ? " · 重复日程" : "");
+      main.append(title,meta);
+      const arrow=document.createElement("span");arrow.className="search-result-arrow";arrow.textContent="›";arrow.setAttribute("aria-hidden","true");
+      btn.append(main,arrow);
+      btn.addEventListener("click",()=>{
+        state.selected=e.date;
+        const d=parseDate(e.date);state.cursor=new Date(d.getFullYear(),d.getMonth(),1);
+        render();editEvent(e.id);
+      });
+      area.append(btn);
+    });
+    if(results.length>50){const more=document.createElement("div");more.className="search-empty";more.textContent="仅显示前 50 条，请增加关键词缩小范围。";area.append(more);}
+  }
+  $("eventSearch").addEventListener("input",renderSearchResults);
+  $("clearSearchBtn").addEventListener("click",()=>{$("eventSearch").value="";renderSearchResults();$("eventSearch").focus();});
   $("parseBtn").addEventListener("click",()=>{
     const raw=$("quickText").value,parsed=parseNatural(raw);
     if(!parsed){toast("先写下你想安排的事情");return;}
