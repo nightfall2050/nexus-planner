@@ -7,8 +7,38 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <meta name="description" content="NEXUS Planner — 隐私优先的个人日程与智能日历。">
   <title>NEXUS Planner — Personal Command Center</title>
-  <link rel="stylesheet" href="./styles.css">
-  <script src="./app.js" defer></script>
+  <link rel="stylesheet" href="./styles.css?v=3">
+  <script>
+    window.addEventListener("error", function (event) {
+      try {
+        var box = document.getElementById("runtimeError");
+        if (!box) {
+          box = document.createElement("div");
+          box.id = "runtimeError";
+          box.setAttribute("role", "alert");
+          box.style.cssText = "position:fixed;z-index:99999;left:12px;right:12px;bottom:12px;padding:14px;background:#7f1d1d;color:white;border:2px solid #fecaca;border-radius:10px;font:14px/1.5 system-ui;overflow-wrap:anywhere";
+          document.body.appendChild(box);
+        }
+        box.textContent = "页面脚本发生错误。请把这条提示发给维护者：" +
+          (event.message || "脚本加载失败") +
+          (event.filename ? "（" + event.filename.split("/").pop() + "，第 " + (event.lineno || "?") + " 行）" : "");
+      } catch (_) {}
+    });
+    window.addEventListener("unhandledrejection", function (event) {
+      try {
+        var box = document.getElementById("runtimeError");
+        if (!box) {
+          box = document.createElement("div");
+          box.id = "runtimeError";
+          box.setAttribute("role", "alert");
+          box.style.cssText = "position:fixed;z-index:99999;left:12px;right:12px;bottom:12px;padding:14px;background:#7f1d1d;color:white;border:2px solid #fecaca;border-radius:10px;font:14px/1.5 system-ui;overflow-wrap:anywhere";
+          document.body.appendChild(box);
+        }
+        box.textContent = "页面异步操作发生错误：" + String(event.reason || "未知错误");
+      } catch (_) {}
+    });
+  </script>
+  <script src="./app.js?v=3" defer></script>
 </head>
 <body>
   <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
