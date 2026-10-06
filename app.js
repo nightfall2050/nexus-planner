@@ -473,7 +473,7 @@
       };
       const applyEdit = (eventId,occurrenceDate,mode) => {
         const e=state.events.find(x=>x.id===eventId);if(!e)return;
-        state.occurrenceEditContext={occurrenceDate,mode};
+        state.occurrenceEditContext={occurrenceDate,mode,matchingIds:mode==="series"?state.events.filter(x=>compact(x.title)===compact(e.title)).map(x=>x.id):[]};
         openEditor(mode==="single"?{...e,...(e.overrides&&e.overrides[occurrenceDate]||{}),date:occurrenceDate}:e);
         if(!$("eventDialog").open)return;
         if(parsed.time)$("eventTime").value=parsed.time;
@@ -491,13 +491,13 @@
         $("eventId").value="";$("eventTitle").value=draftTitle;$("eventDate").value=draftDate;
         $("eventTime").value=parsed.time||"";$("eventEnd").value=parsed.endTime||"";
         $("eventCountdownEnabled").checked=!!parsed.countdownEnabled;syncCountdownOption();
-        $("eventReminder").value=String(parsed.reminder);$("eventLocation").value=parsed.location;$("eventRepeat").value=parsed.repeat;
+        $("eventReminder").value=String(parsed.reminder);$("eventLocation").value=parsed.location;$("eventRepeat").value=parsed.repeat;$("eventSpecialReminder").checked=!!parsed.specialReminder;
         toast("已打开新待办草稿；请核对标题和日期后再保存");
       };
       const renderEditSearch = keyword => {
         const candidates=findMatches(keyword);
         const resultsHtml=candidates.length
-          ? candidates.map(e=>'<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.occurrenceDate||e.date)+' · '+esc(e.time||"无指定时间")+(e.endTime?" – "+esc(e.endTime):"")+' · '+esc(e.repeat!=="none"?"重复系列":"单次日程")+(e.location?" · "+esc(e.location):"")+'</p><button type="button" class="secondary-btn" data-edit-id="'+esc(e.id)+'" data-edit-date="'+esc(e.occurrenceDate||e.date)+'" data-edit-mode="single">单日程修改</button>'+(e.repeat!=="none"?'<button type="button" class="secondary-btn" data-edit-id="'+esc(e.id)+'" data-edit-date="'+esc(e.occurrenceDate||e.date)+'" data-edit-mode="series">同名重复日程统一修改</button>':"")+'</div>').join("")
+          ? candidates.map(e=>{const sameNameCount=state.events.filter(x=>compact(x.title)===compact(e.title)).length;return '<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.occurrenceDate||e.date)+' · '+esc(e.time||"无指定时间")+(e.endTime?" – "+esc(e.endTime):"")+' · '+esc(e.repeat!=="none"?"重复系列":"单次日程")+(e.location?" · "+esc(e.location):"")+'</p><button type="button" class="secondary-btn" data-edit-id="'+esc(e.id)+'" data-edit-date="'+esc(e.occurrenceDate||e.date)+'" data-edit-mode="single">单日程修改</button>'+(e.repeat!=="none"||sameNameCount>1?'<button type="button" class="secondary-btn" data-edit-id="'+esc(e.id)+'" data-edit-date="'+esc(e.occurrenceDate||e.date)+'" data-edit-mode="series">统一修改所有同名日程</button>':"")+'</div>';}).join("")
           : '<p class="notice">在 '+esc(searchRange.label||parsed.date)+' 没有找到标题包含“'+esc(keyword||"（空关键词）")+'”的日程。你可以换个更短的关键词，或选择把这句话作为新待办草稿。</p>';
         showDraft('<h4>按日期范围和标题关键词查找</h4><p>查找范围：'+esc(searchRange.label||parsed.date)+'。标题支持部分匹配，例如“英语”可以匹配更长的课程名称。</p><label class="field-label" for="editKeywordInput">项目标题关键词</label><div class="search-input-row"><input id="editKeywordInput" type="search" value="'+esc(keyword)+'" placeholder="输入项目标题中的几个字"><button type="button" class="secondary-btn" id="searchEditKeywordBtn">搜索</button></div>'+resultsHtml+(candidates.length?"":'<div class="draft-buttons"><button type="button" class="secondary-btn" id="createNewFromEditBtn">仍未找到？作为新待办草稿</button></div>')+'');
         $("searchEditKeywordBtn").addEventListener("click",()=>renderEditSearch($("editKeywordInput").value.trim()));
