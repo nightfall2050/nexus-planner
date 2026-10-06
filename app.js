@@ -207,7 +207,7 @@
   }
   function parseNatural(text) {
     const raw=text.trim(); if(!raw)return null;
-    const editMarker=raw.match(/(?:改为|改成|改到|调整到|更改到|设置为|设定为|换成)/);
+    const editMarker=raw.match(/(?:修改为|修改成|修改到|改为|改成|改到|调整到|更改到|设置为|设定为|换成)/);
     const isEdit=/(修改|改成|改为|调整|更改|设置|设定|把.+换成|把.+改到|把.+移到|把.+日期改)/.test(raw);
     const sourceText=isEdit&&editMarker?raw.slice(0,editMarker.index):raw;
     const target=parseTargetDate(sourceText);
@@ -302,7 +302,7 @@
     }
     if(parsed.action==="edit") {
       const compact = value => String(value || "").toLocaleLowerCase().replace(/[\s的这条个]/g, "");
-      const editMarker = raw.match(/(?:改为|改成|改到|调整到|更改到|设置为|设定为|换成)/);
+      const editMarker = raw.match(/(?:修改为|修改成|修改到|改为|改成|改到|调整到|更改到|设置为|设定为|换成)/);
       const destinationText = editMarker ? raw.slice(editMarker.index + editMarker[0].length) : "";
       const destinationParsed = destinationText ? parseTargetDate(destinationText) : null;
       let destinationDate = destinationParsed && destinationParsed.matched ? destinationParsed.date : "";
@@ -332,12 +332,11 @@
         .replace(/[的这条个：:，,。；;\s]/g,"").trim();
       const eventCandidates = occurrenceEvents(parsed.date);
       const findMatches = keyword => {
-        const normalized = compact(keyword).replace(/[，,。；;、]+/g," ").trim();
-        const terms = normalized.split(/\s+/).filter(Boolean);
+        const terms = String(keyword||"").toLocaleLowerCase().split(/\s+/).map(term=>term.replace(/[的这条个，,。；;、]/g,"")).filter(Boolean);
         if(!terms.length)return [];
         return eventCandidates.filter(e=>{
           const title=compact(e.title);
-          return terms.every(term=>title.includes(term)) || title.includes(normalized.replace(/\s+/g,""));
+          return terms.every(term=>title.includes(term));
         });
       };
       const applyEdit = eventId => {
@@ -366,11 +365,11 @@
         const resultsHtml=candidates.length
           ? candidates.map(e=>'<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.date)+' · '+esc(e.time||"无指定时间")+(e.endTime?" – "+esc(e.endTime):"")+' · '+esc(e.repeat!=="none"?"重复系列":"单次日程")+(e.location?" · "+esc(e.location):"")+'</p><button type="button" class="secondary-btn" data-edit-id="'+esc(e.id)+'">选择并修改</button></div>').join("")
           : '<p class="notice">在 '+esc(parsed.date)+' 没有找到标题包含“'+esc(keyword||"（空关键词）")+'”的日程。你可以换个更短的关键词，或选择把这句话作为新待办草稿。</p>';
-        showDraft('<h4>按日期和标题关键词查找</h4><p>先查找原日程日期：'+esc(parsed.date)+'。标题支持部分匹配，例如“完成 A”可以匹配“完成 A 并设计 B”。</p><label class="field-label" for="editKeywordInput">项目标题关键词</label><div class="search-input-row"><input id="editKeywordInput" type="search" value="'+esc(keyword)+'" placeholder="输入项目标题中的几个字"><button type="button" class="secondary-btn" id="searchEditKeywordBtn">搜索</button></div>'+resultsHtml+'<div class="draft-buttons"><button type="button" class="secondary-btn" id="createNewFromEditBtn">未找到？作为新待办草稿</button></div>');
+        showDraft('<h4>按日期和标题关键词查找</h4><p>先查找原日程日期：'+esc(parsed.date)+'。标题支持部分匹配，例如“完成 A”可以匹配“完成 A 并设计 B”。</p><label class="field-label" for="editKeywordInput">项目标题关键词</label><div class="search-input-row"><input id="editKeywordInput" type="search" value="'+esc(keyword)+'" placeholder="输入项目标题中的几个字"><button type="button" class="secondary-btn" id="searchEditKeywordBtn">搜索</button></div>'+resultsHtml+(candidates.length?"":'<div class="draft-buttons"><button type="button" class="secondary-btn" id="createNewFromEditBtn">仍未找到？作为新待办草稿</button></div>')+'');
         $("searchEditKeywordBtn").addEventListener("click",()=>renderEditSearch($("editKeywordInput").value.trim()));
         $("editKeywordInput").addEventListener("keydown",ev=>{if(ev.key==="Enter"){ev.preventDefault();renderEditSearch($("editKeywordInput").value.trim());}});
         $("draftArea").querySelectorAll("[data-edit-id]").forEach(btn=>btn.addEventListener("click",()=>applyEdit(btn.dataset.editId)));
-        $("createNewFromEditBtn").addEventListener("click",()=>openNewDraft($("editKeywordInput").value.trim()));
+        const createButton=$("createNewFromEditBtn");if(createButton)createButton.addEventListener("click",()=>openNewDraft($("editKeywordInput").value.trim()));
       };
       renderEditSearch(targetKeyword);
       return;
