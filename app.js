@@ -556,23 +556,23 @@
   $("parseLongTaskBtn").addEventListener("click",()=>{
     const raw=$("longTaskText").value.trim();
     if(!raw){toast("请描述长期任务的开始和结束日期");return;}
-    const boundary=raw.match(/(?:到|至|结束于|截止于|结束时间为|截止时间为)\\s*(.+)$/);
+    const boundary=raw.match(/(?:到|至|结束于|截止于|结束时间为|截止时间为)\s*(.+)$/);
     if(!boundary){showDraft('<h4>还需要明确结束时间</h4><p>请使用“从今天早上9点开始……到明天下午5点结束”的表达。</p>');return;}
     const startText=raw.slice(0,boundary.index);
     const endText=boundary[1];
     const startParsed=parseTargetDate(startText);
     const endParsed=parseTargetDate(endText);
-    const normalizeChineseHour=s=>s.replace(/(上午|早上|中午|下午|晚上|傍晚)?\\s*([一二三四五六七八九十两]{1,3})(点|时)/g,(all,period,num,unit)=>{
+    const normalizeChineseHour=s=>s.replace(/(上午|早上|中午|下午|晚上|傍晚)?\s*([一二三四五六七八九十两]{1,3})(点|时)/g,(all,period,num,unit)=>{
       const nums={一:1,二:2,两:2,三:3,四:4,五:5,六:6,七:7,八:8,九:9,十:10,十一:11,十二:12};
       const n=nums[num]; return n?((period||"") + n + unit):all;
     });
     const startTime=parseTimeRange(normalizeChineseHour(startText)).time;
     const endTime=parseTimeRange(normalizeChineseHour(endText)).time;
-    let title=raw.slice(boundary.index+boundary[0].match(/\\s*/)[0].length);
+    let title=endText;
     title=title.replace(/^(?:明天|明日|后天|大后天|今天|今日|下周|下星期|这周|本周|周[一二三四五六日天]|星期[一二三四五六日天])?/,"")
-      .replace(/(?:上午|早上|中午|下午|晚上|傍晚)?\\s*[0-9一二三四五六七八九十两]{1,3}(?:[:：][0-9]{1,2}|点(?:半|[0-9]{1,2}分?)?|时(?:半|[0-9]{1,2}分?)?)/g," ")
-      .replace(/^(?:完成|做完|结束|截止|开始|开始做|去完成|要完成)\\s*/,"")
-      .replace(/[，,。；;]/g," ").replace(/\\s+/g," ").trim();
+      .replace(/(?:上午|早上|中午|下午|晚上|傍晚)?\s*[0-9一二三四五六七八九十两]{1,3}(?:[:：][0-9]{1,2}|点(?:半|[0-9]{1,2}分?)?|时(?:半|[0-9]{1,2}分?)?)/g," ")
+      .replace(/^(?:完成|做完|结束|截止|开始|开始做|去完成|要完成)\s*/,"")
+      .replace(/[，,。；;]/g," ").replace(/\s+/g," ").trim();
     if(!startParsed.matched||!endParsed.matched||!startTime||!endTime){
       showDraft('<h4>还需要明确开始和结束日期/时间</h4><p>例如：“从今天早上9点到明天下午5点完成博约杯备考”。支持“下午五点”这样的中文数字时间。</p>');
       return;
