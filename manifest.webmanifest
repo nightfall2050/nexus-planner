@@ -1,0 +1,11 @@
+{
+  "name": "NEXUS Planner",
+  "short_name": "NEXUS",
+  "description": "隐私优先的个人日程与待办",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#080d1b",
+  "theme_color": "#080d1b"
+}
