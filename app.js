@@ -103,7 +103,7 @@
   $("eventStudyEnabled").addEventListener("change",()=>{$("eventStudyFields").hidden=!$("eventStudyEnabled").checked;});
   $("studyModeBtn").addEventListener("click",()=>applyInterfaceMode("study"));
   $("classicModeBtn").addEventListener("click",()=>applyInterfaceMode("classic"));
-  $("studyAddBtn").addEventListener("click",()=>{$("addBtn").click();$("eventStudyEnabled").checked=true;$("eventStudyFields").hidden=false;});
+  $("studyAddBtn").addEventListener("click",()=>{$("addBtn").click();$("eventDate").value=dateKey(new Date());$("eventStudyEnabled").checked=true;$("eventStudyFields").hidden=false;});
   function editEvent(eventId){const e=state.events.find(x=>x.id===eventId);if(!e)return;if(e.repeat!=="none"&&!confirm("这是重复日程。直接编辑会修改整个重复系列；若只改某一天，请使用自然语言修改并选择“单日程修改”。继续统一修改吗？"))return;state.occurrenceEditContext=null;openEditor(e);}
   function deleteEvent(eventId){const e=state.events.find(x=>x.id===eventId);if(!e)return;const message=e.repeat!=="none"?"这会删除整个重复系列，而不是只删除当天。建议先导出备份。确定删除？":"确定删除“"+e.title+"”？";if(!confirm(message))return;snapshot();state.events=state.events.filter(x=>x.id!==eventId);save();render();toast("日程已删除。可用撤销恢复。");}
   $("eventForm").addEventListener("submit",ev=>{
