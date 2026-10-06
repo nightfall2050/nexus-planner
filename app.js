@@ -142,6 +142,7 @@
     });
     dock.hidden=running.length===0;
     state.countdownActive=currentKeys;
+    updateSpecialSummaryLive();
   }
   function formatSummaryDuration(ms){
     let total=Math.max(0,Math.floor(ms/1000));
