@@ -556,27 +556,42 @@
   $("parseLongTaskBtn").addEventListener("click",()=>{
     const raw=$("longTaskText").value.trim();
     if(!raw){toast("请描述长期任务的开始和结束日期");return;}
-    const parsed=parseNatural(raw);
     const boundary=raw.match(/(?:到|至|结束于|截止于|结束时间为|截止时间为)\s*(.+)$/);
-    const endText=boundary?boundary[1]:"";
-    const endParsed=endText?parseTargetDate(endText):null;
-    const startText=boundary?raw.slice(0,boundary.index):raw;
+    if(!boundary){showDraft('<h4>还需要明确结束时间</h4><p>请使用“从今天早上9点开始……到明天下午5点结束”的表达。</p>');return;}
+    const startText=raw.slice(0,boundary.index);
+    const endText=boundary[1];
     const startParsed=parseTargetDate(startText);
-    if(!parsed||!startParsed.matched||!endParsed||!endParsed.matched){
-      showDraft('<h4>还需要明确开始和结束日期</h4><p>长期任务不会自动猜测日期。请写出两个日期，例如“从今天下午 6 点开始做网站项目，到周五下午 7 点结束”。</p>');
+    const endParsed=parseTargetDate(endText);
+    const normalizeChineseHour=s=>s.replace(/(上午|早上|中午|下午|晚上|傍晚)?\s*([一二三四五六七八九十两]{1,3})(点|时)/g,(all,period,num,unit)=>{
+      const nums={一:1,二:2,两:2,三:3,四:4,五:5,六:6,七:7,八:8,九:9,十:10,十一:11,十二:12};
+      const n=nums[num]; return n?((period||"") + n + unit):all;
+    });
+    const startTime=parseTimeRange(normalizeChineseHour(startText)).time;
+    const endTime=parseTimeRange(normalizeChineseHour(endText)).time;
+    let title=endText;
+    title=title.replace(/^(?:明天|明日|后天|大后天|今天|今日|下周|下星期|这周|本周|周[一二三四五六日天]|星期[一二三四五六日天])?/,"")
+      .replace(/(?:上午|早上|中午|下午|晚上|傍晚)?\s*[0-9一二三四五六七八九十两]{1,3}(?:[:：][0-9]{1,2}|点(?:半|[0-9]{1,2}分?)?|时(?:半|[0-9]{1,2}分?)?)/g," ")
+      .replace(/^(?:完成|做完|结束|截止|开始|开始做|去完成|要完成)\s*/,"")
+      .replace(/[，,。；;]/g," ").replace(/\s+/g," ").trim();
+    if(!startParsed.matched||!endParsed.matched||!startTime||!endTime){
+      showDraft('<h4>还需要明确开始和结束日期/时间</h4><p>例如：“从今天早上9点到明天下午5点完成博约杯备考”。支持“下午五点”这样的中文数字时间。</p>');
       return;
     }
-    const rangeEnd=endParsed.date;
-    if(rangeEnd<startParsed.date){showDraft('<h4>日期顺序需要确认</h4><p>结束日期早于开始日期。请修改描述后重新生成草稿。</p>');return;}
-    showDraft('<h4>长期任务草稿（待确认）</h4><p><strong>事项：</strong>'+esc(parsed.title||"请补充事项名称")+'</p><p><strong>开始：</strong>'+esc(startParsed.date)+' '+esc(parsed.time||"未指定时间")+'</p><p><strong>结束：</strong>'+esc(rangeEnd)+' '+esc(parsed.endTime||"未指定时间")+'</p><p class="notice">系统不会直接保存；请检查日期与时间后再确认。</p><div class="draft-buttons"><button class="secondary-btn" id="discardLongDraft">放弃</button><button class="primary-btn" id="useLongDraft">检查并编辑长期任务</button></div>');
+    if(endParsed.date<startParsed.date||(endParsed.date===startParsed.date&&endTime<=startTime)){
+      showDraft('<h4>日期或时间顺序需要确认</h4><p>结束时间必须晚于开始时间，请修改描述后重新生成草稿。</p>');return;
+    }
+    if(!title)title="长期任务";
+    const parsed=parseNatural(raw);
+    const reminder=parsed?parsed.reminder:0;
+    const countdownEnabled=/(自动倒计时|开始时.{0,5}倒计时|开始自动倒计时|启动.{0,8}倒计时|开启.{0,8}倒计时|打开.{0,8}倒计时|启用.{0,8}倒计时|倒计时.{0,8}(开启|打开|启用|开始|启动))/.test(raw);
+    showDraft('<h4>长期任务草稿（待确认）</h4><p><strong>事项：</strong>'+esc(title)+'</p><p><strong>开始：</strong>'+esc(startParsed.date)+' '+esc(startTime)+'</p><p><strong>结束：</strong>'+esc(endParsed.date)+' '+esc(endTime)+'</p><p class="notice">请检查日期与时间；确认后才会保存。</p><div class="draft-buttons"><button class="secondary-btn" id="discardLongDraft">放弃</button><button class="primary-btn" id="useLongDraft">检查并编辑长期任务</button></div>');
     $("discardLongDraft").addEventListener("click",()=>{$("draftArea").hidden=true;$("draftArea").innerHTML="";});
     $("useLongDraft").addEventListener("click",()=>{
-      openEditor({...parsed,id:"",date:startParsed.date,endDate:rangeEnd,longTask:true},true);
-      $("eventTitle").value=parsed.title;$("eventDate").value=startParsed.date;$("eventEndDate").value=rangeEnd;
-      $("eventTime").value=parsed.time||"";$("eventEnd").value=parsed.endTime||"";
-      $("eventCountdownEnabled").checked=!!parsed.countdownEnabled;syncCountdownOption();
-      $("eventReminder").value=String(parsed.reminder||0);$("eventLocation").value=parsed.location||"";
-      $("eventRepeat").value="none";$("eventSpecialReminder").checked=!!parsed.specialReminder;
+      openEditor({id:"",title,date:startParsed.date,endDate:endParsed.date,longTask:true,time:startTime,endTime,reminder,countdownEnabled},true);
+      $("eventTitle").value=title;$("eventDate").value=startParsed.date;$("eventEndDate").value=endParsed.date;
+      $("eventTime").value=startTime;$("eventEnd").value=endTime;
+      $("eventCountdownEnabled").checked=countdownEnabled;syncCountdownOption();
+      $("eventReminder").value=String(reminder);$("eventRepeat").value="none";
     });
   });
   $("parseBtn").addEventListener("click",()=>{
