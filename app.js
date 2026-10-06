@@ -52,9 +52,9 @@
     const md = raw.match(/(\d{1,2})月(\d{1,2})日?/);
     if (full) { d.setFullYear(+full[1], +full[2]-1, +full[3]); matched=true; }
     else if (md) { d.setFullYear(now.getFullYear(), +md[1]-1, +md[2]); matched=true; }
-    const wd = raw.match(/(下周|下星期|这周|本周|周|星期)([一二三四五六日天])/);
+    const wd = raw.match(/(下周|下星期|这周|本周|周|星期)([一二三四五六日天1-7])/);
     if (wd && !full && !md && !/今天|今日|明天|明日|后天|大后天/.test(raw)) {
-      const map={一:1,二:2,三:3,四:4,五:5,六:6,日:0,天:0};
+      const map={一:1,二:2,三:3,四:4,五:5,六:6,日:0,天:0,"1":1,"2":2,"3":3,"4":4,"5":5,"6":6,"7":0};
       let delta=(map[wd[2]]-now.getDay()+7)%7;
       if (delta===0) delta=7;
       d.setDate(d.getDate()+delta); matched=true;
@@ -77,7 +77,7 @@
     if(location && /^(明天|今天|后天|大后天|下周|本周|这周|周[一二三四五六日天]|星期[一二三四五六日天]|上午|下午|晚上|早上|中午|傍晚)/.test(location)) location="";
     const rm=raw.match(/提前\s*(\d+)\s*分钟?提醒/);
     const deleteIntent=/(删除|删掉|取消|移除|不要了|不再安排|去掉)/.test(raw);
-    const editIntent=/(修改|改成|改为|调整|更改|把.+换成)/.test(raw);
+    const editIntent=/(修改|改成|改为|调整|更改|设置|设定|把.+换成|把.+改到|把.+移到|把.+日期改)/.test(raw);
     const repeat=/每周|每个星期/.test(raw)?"weekly":/每天|每日/.test(raw)?"daily":/每个工作日|工作日/.test(raw)?"weekdays":"none";
     let title=raw
       .replace(/请帮我|请|帮我|安排一下|安排|新增|添加|创建|新建|删除|删掉|取消|移除|不要了|不再安排|去掉|修改|调整|更改|把|下周|下星期|这周|本周|今天|今日|明天|明日|后天|大后天|20\d{2}[年./-]\d{1,2}[月./-]\d{1,2}日?|\d{1,2}月\d{1,2}日?|(?:周|星期)[一二三四五六日天]/g," ")
@@ -125,26 +125,39 @@
     if(parsed.action==="edit") {
       const compact = value => String(value || "").replace(/[\s的这条个]/g, "").toLowerCase();
       const rawCompact = compact(raw);
-      // Match only events whose actual title is explicitly present in the user's sentence.
-      const candidates = occurrenceEvents(parsed.date).filter(e => {
-        const title = compact(e.title);
-        return title.length > 0 && rawCompact.includes(title);
-      });
+      const destinationMatch = raw.match(/(?:改到|移到|调整到|更改到|日期改为|日期改成)\s*(下周|下星期|这周|本周|周|星期)([一二三四五六日天1-7])/);
+      let destinationDate = "";
+      if (destinationMatch) {
+        const now = new Date(), map = {一:1,二:2,三:3,四:4,五:5,六:6,日:0,天:0,"1":1,"2":2,"3":3,"4":4,"5":5,"6":6,"7":0};
+        const offset = map[destinationMatch[2]]===0 ? 6 : map[destinationMatch[2]]-1;
+        let monday;
+        if (/下周|下星期/.test(destinationMatch[1])) monday = new Date(now.getFullYear(),now.getMonth(),now.getDate()-((now.getDay()+6)%7)+7,12);
+        else if (/这周|本周/.test(destinationMatch[1])) monday = new Date(now.getFullYear(),now.getMonth(),now.getDate()-((now.getDay()+6)%7),12);
+        else {
+          const d = new Date(now.getFullYear(),now.getMonth(),now.getDate(),12);
+          const delta = (map[destinationMatch[2]]-now.getDay()+7)%7 || 7;
+          d.setDate(d.getDate()+delta); destinationDate=fmtDate(d);
+        }
+        if (monday) { monday.setDate(monday.getDate()+offset); destinationDate=fmtDate(monday); }
+      }
+      const locationChange = raw.match(/(?:地点|位置)\s*(?:设置\s*(?:为|成|到)|设定\s*(?:为|成|到)|改\s*(?:为|成|到)|调整\s*(?:为|成|到)|更改\s*(?:为|成|到)|改为|改成|调整为|更改为|设为|为|是)\s*([^，,。；;]+)/);
+      const renameMatch = raw.match(/(?:改名为|名称改为|标题改为)([^，,。；;]+)/);
+      let candidates = occurrenceEvents(parsed.date).filter(e => rawCompact.includes(compact(e.title)));
+      if (!candidates.length && destinationDate && /(?:明天|明日|今天|今日|后天|大后天)/.test(raw) && /把/.test(raw)) candidates = occurrenceEvents(parsed.date);
       if (!candidates.length) {
-        showDraft('<h4>未找到明确匹配的日程</h4><p>目标日期：'+esc(parsed.date)+'</p><p>请在指令中写出已有日程的名称，例如“把项目会的地点设置为食堂”或“把英语课改到下午 4 点”。没有任何内容被修改，也不会新建待办。</p>');
+        showDraft('<h4>未找到明确匹配的日程</h4><p>原日程日期：'+esc(parsed.date)+'</p><p>请在指令中写出已有日程名称，例如“把项目会地点设置为食堂”。没有任何内容被修改，也不会新建待办。</p>');
         return;
       }
-      const locationChange = raw.match(/(?:地点|位置)\s*(?:(?:设置|设定|改|调整|更改)\s*(?:为|成|到)|(?:设置|设定)为|为|是|改成|改为|调整为|更改为)\s*([^，,。；;]+)/);
-      const renameMatch = raw.match(/(?:改名为|名称改为|标题改为)([^，,。；;]+)/);
-      showDraft('<h4>请选择要修改的日程</h4><p>目标日期：'+esc(parsed.date)+'。选择后会打开编辑窗口，核对并保存才会生效。重复日程会修改整个系列。</p>'+candidates.map(e=>'<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.time||"无指定时间")+' · '+esc(e.repeat!=="none"?"重复系列":"单次日程")+(e.location?" · "+esc(e.location):"")+'</p><button type="button" class="secondary-btn" data-edit-id="'+esc(e.id)+'">选择并修改</button></div>').join(""));
+      showDraft('<h4>请选择要修改的日程</h4><p>原日程日期：'+esc(parsed.date)+'。选择后会打开编辑窗口，核对并保存才会生效。重复日程会修改整个系列。</p>'+candidates.map(e=>'<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.time||"无指定时间")+' · '+esc(e.repeat!=="none"?"重复系列":"单次日程")+(e.location?" · "+esc(e.location):"")+'</p><button type="button" class="secondary-btn" data-edit-id="'+esc(e.id)+'">选择并修改</button></div>').join(""));
       $("draftArea").querySelectorAll("[data-edit-id]").forEach(btn=>btn.addEventListener("click",()=>{
         const e=state.events.find(x=>x.id===btn.dataset.editId); if(!e)return;
         editEvent(e.id);
         if(!$("eventDialog").open)return;
         if(parsed.time)$("eventTime").value=parsed.time;
-        if(locationChange)$("eventLocation").value=locationChange[1].trim();
+        if(locationChange)$("eventLocation").value=locationChange[1].trim().replace(/^(为|成|到)\s*/,"");
+        if(destinationDate)$("eventDate").value=destinationDate;
         if(renameMatch)$("eventTitle").value=renameMatch[1].trim();
-        toast("已填入修改建议；请检查后点击“保存日程”");
+        toast("已填入修改建议；请检查日期、地点等内容后点击“保存日程”");
       }));
       return;
     }
