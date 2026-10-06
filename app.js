@@ -60,7 +60,10 @@
     const item={id:oldId||id(),title,date:context&&context.mode==="series"&&previous?previous.date:date,time,endTime,reminder,reminderRevision,countdownEnabled,specialReminder,location:$("eventLocation").value.trim(),notes:$("eventNotes").value.trim(),repeat:$("eventRepeat").value,done:previous?!!previous.done:false,excludedDates:Array.isArray(previous?.excludedDates)?previous.excludedDates:[],overrides:context&&context.mode==="series"?{}:(previous?.overrides||{})};
     if(timingChanged&&oldId){state.reminderQueue=state.reminderQueue.filter(entry=>entry.event.id!==oldId);for(const key of state.reminderSnoozed.keys())if(key.startsWith(oldId+"@"))state.reminderSnoozed.delete(key);}
     snapshot();
-    if(oldId)state.events=state.events.map(e=>e.id===oldId?item:e);else state.events.push(item);
+    if(context&&context.mode==="series"&&Array.isArray(context.matchingIds)&&context.matchingIds.length){
+      const ids=new Set(context.matchingIds);
+      state.events=state.events.map(existing=>ids.has(existing.id)?{...existing,title:item.title,time:item.time,endTime:item.endTime,reminder:item.reminder,reminderRevision:item.reminderRevision,countdownEnabled:item.countdownEnabled,specialReminder:item.specialReminder,location:item.location,notes:item.notes,overrides:{}}:existing);
+    }else if(oldId)state.events=state.events.map(e=>e.id===oldId?item:e);else state.events.push(item);
     save();state.selected=date;const parsed=parseDate(date);state.cursor=new Date(parsed.getFullYear(),parsed.getMonth(),1);$("eventDialog").close();render();checkReminders();updateCountdowns();toast(oldId?"日程已更新":"日程已保存到当前浏览器");
   });
   $("addBtn").addEventListener("click",()=>openEditor());$("addForDayBtn").addEventListener("click",()=>openEditor());$("closeDialog").addEventListener("click",()=>$("eventDialog").close());$("cancelDialog").addEventListener("click",()=>$("eventDialog").close());
