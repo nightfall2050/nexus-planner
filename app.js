@@ -49,7 +49,7 @@
       if(date!==key){
         previous.excludedDates=Array.isArray(previous.excludedDates)?previous.excludedDates:[];
         if(!previous.excludedDates.includes(key))previous.excludedDates.push(key);
-        state.events.push({id:id(),...previous,...base,...updated,date,repeat:"none",done:false,excludedDates:[],overrides:undefined});
+        state.events.push({...previous,...base,...updated,id:id(),date,repeat:"none",done:false,excludedDates:[],overrides:undefined});
       }else previous.overrides={...oldOverrides,[key]:{...base,...updated}};
       state.occurrenceEditContext=null;save();state.selected=date;const d=parseDate(date);state.cursor=new Date(d.getFullYear(),d.getMonth(),1);$("eventDialog").close();render();checkReminders();updateCountdowns();toast(date!==key?"已将这一次日程移到新日期":"已仅修改这一天的日程，其他重复日期不变");return;
     }
@@ -57,7 +57,7 @@
     state.occurrenceEditContext=null;
     const timingChanged=!!previous&&(["date","time","endTime","reminder"].some(k=>String(previous[k]||"")!==String(({date,time,endTime,reminder})[k]||""))||!!previous.countdownEnabled!==countdownEnabled);
     const reminderRevision=(previous?Number(previous.reminderRevision||0):0)+(timingChanged?1:0);
-    const item={id:oldId||id(),title,date:context&&context.mode==="series"&&previous?previous.date:date,time,endTime,reminder,reminderRevision,countdownEnabled,specialReminder,location:$("eventLocation").value.trim(),notes:$("eventNotes").value.trim(),repeat:$("eventRepeat").value,done:previous?!!previous.done:false,excludedDates:Array.isArray(previous?.excludedDates)?previous.excludedDates:[],overrides:previous?.overrides||{}};
+    const item={id:oldId||id(),title,date:context&&context.mode==="series"&&previous?previous.date:date,time,endTime,reminder,reminderRevision,countdownEnabled,specialReminder,location:$("eventLocation").value.trim(),notes:$("eventNotes").value.trim(),repeat:$("eventRepeat").value,done:previous?!!previous.done:false,excludedDates:Array.isArray(previous?.excludedDates)?previous.excludedDates:[],overrides:context&&context.mode==="series"?{}:(previous?.overrides||{})};
     if(timingChanged&&oldId){state.reminderQueue=state.reminderQueue.filter(entry=>entry.event.id!==oldId);for(const key of state.reminderSnoozed.keys())if(key.startsWith(oldId+"@"))state.reminderSnoozed.delete(key);}
     snapshot();
     if(oldId)state.events=state.events.map(e=>e.id===oldId?item:e);else state.events.push(item);
@@ -339,8 +339,8 @@
   function getTargetDateRange(raw){const now=new Date(),today=new Date(now.getFullYear(),now.getMonth(),now.getDate(),12),m=raw.match(/(下周|下星期|这周|本周)([一二三四五六日天1-7])?/);if(!m)return null;const monday=new Date(today);monday.setDate(today.getDate()-((today.getDay()+6)%7)+(/下周|下星期/.test(m[1])?7:0));if(m[2]){const map={一:0,二:1,三:2,四:3,五:4,六:5,日:6,天:6,"1":0,"2":1,"3":2,"4":3,"5":4,"6":5,"7":6};const d=new Date(monday);d.setDate(monday.getDate()+map[m[2]]);return {start:fmtDate(d),end:fmtDate(d),label:fmtDate(d)};}const end=new Date(monday);end.setDate(monday.getDate()+6);return {start:fmtDate(monday),end:fmtDate(end),label:fmtDate(monday)+" 至 "+fmtDate(end)};}
   function parseNatural(text) {
     const raw=text.trim(); if(!raw)return null;
-    const editMarker=raw.match(/(?:修改为|修改成|修改到|调整为|调整成|调整到|更改为|更改成|更改到|设置为|设置成|设定为|设定成|改为|改成|改到|换成)/);
-    const isEdit=/(修改|改成|改为|调整|更改|设置|设定|把.+换成|把.+改到|把.+移到|把.+日期改)/.test(raw);
+    const editMarker=raw.match(/(?:设为特别提醒|设置为特别提醒|标记为特别提醒|加上特别提醒|修改为|修改成|修改到|调整为|调整成|调整到|更改为|更改成|更改到|设置为|设置成|设定为|设定成|改为|改成|改到|换成)/);
+    const isEdit=/(修改|改成|改为|调整|更改|设置|设定|设为特别提醒|标星|特别提醒|把.+换成|把.+改到|把.+移到|把.+日期改)/.test(raw);
     const sourceText=isEdit&&editMarker?raw.slice(0,editMarker.index):raw;
     const range=getTargetDateRange(sourceText); const target=range?{date:range.start,matched:true}:parseTargetDate(sourceText);
     const timeText=isEdit&&editMarker?raw.slice(editMarker.index+editMarker[0].length):raw;
@@ -498,8 +498,8 @@
         const candidates=findMatches(keyword);
         const resultsHtml=candidates.length
           ? candidates.map(e=>'<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.occurrenceDate||e.date)+' · '+esc(e.time||"无指定时间")+(e.endTime?" – "+esc(e.endTime):"")+' · '+esc(e.repeat!=="none"?"重复系列":"单次日程")+(e.location?" · "+esc(e.location):"")+'</p><button type="button" class="secondary-btn" data-edit-id="'+esc(e.id)+'" data-edit-date="'+esc(e.occurrenceDate||e.date)+'" data-edit-mode="single">单日程修改</button>'+(e.repeat!=="none"?'<button type="button" class="secondary-btn" data-edit-id="'+esc(e.id)+'" data-edit-date="'+esc(e.occurrenceDate||e.date)+'" data-edit-mode="series">同名重复日程统一修改</button>':"")+'</div>').join("")
-          : '<p class="notice">在 '+esc(parsed.date)+' 没有找到标题包含“'+esc(keyword||"（空关键词）")+'”的日程。你可以换个更短的关键词，或选择把这句话作为新待办草稿。</p>';
-        showDraft('<h4>按日期和标题关键词查找</h4><p>先查找原日程日期：'+esc(parsed.date)+'。标题支持部分匹配，例如“完成 A”可以匹配“完成 A 并设计 B”。</p><label class="field-label" for="editKeywordInput">项目标题关键词</label><div class="search-input-row"><input id="editKeywordInput" type="search" value="'+esc(keyword)+'" placeholder="输入项目标题中的几个字"><button type="button" class="secondary-btn" id="searchEditKeywordBtn">搜索</button></div>'+resultsHtml+(candidates.length?"":'<div class="draft-buttons"><button type="button" class="secondary-btn" id="createNewFromEditBtn">仍未找到？作为新待办草稿</button></div>')+'');
+          : '<p class="notice">在 '+esc(searchRange.label||parsed.date)+' 没有找到标题包含“'+esc(keyword||"（空关键词）")+'”的日程。你可以换个更短的关键词，或选择把这句话作为新待办草稿。</p>';
+        showDraft('<h4>按日期范围和标题关键词查找</h4><p>查找范围：'+esc(searchRange.label||parsed.date)+'。标题支持部分匹配，例如“英语”可以匹配更长的课程名称。</p><label class="field-label" for="editKeywordInput">项目标题关键词</label><div class="search-input-row"><input id="editKeywordInput" type="search" value="'+esc(keyword)+'" placeholder="输入项目标题中的几个字"><button type="button" class="secondary-btn" id="searchEditKeywordBtn">搜索</button></div>'+resultsHtml+(candidates.length?"":'<div class="draft-buttons"><button type="button" class="secondary-btn" id="createNewFromEditBtn">仍未找到？作为新待办草稿</button></div>')+'');
         $("searchEditKeywordBtn").addEventListener("click",()=>renderEditSearch($("editKeywordInput").value.trim()));
         $("editKeywordInput").addEventListener("keydown",ev=>{if(ev.key==="Enter"){ev.preventDefault();renderEditSearch($("editKeywordInput").value.trim());}});
         $("draftArea").querySelectorAll("[data-edit-id]").forEach(btn=>btn.addEventListener("click",()=>applyEdit(btn.dataset.editId,btn.dataset.editDate,btn.dataset.editMode||"single")));
