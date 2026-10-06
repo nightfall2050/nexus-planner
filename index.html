@@ -7,7 +7,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <meta name="description" content="NEXUS Planner — 隐私优先的个人日程与智能日历。">
   <title>NEXUS Planner — Personal Command Center</title>
-  <link rel="stylesheet" href="./styles.css?v=7">
+  <link rel="stylesheet" href="./styles.css?v=8">
   <script>
     window.addEventListener("error", function (event) {
       try {
@@ -38,7 +38,7 @@
       } catch (_) {}
     });
   </script>
-  <script src="./app.js?v=13" defer></script>
+  <script src="./app.js?v=14" defer></script>
 </head>
 <body>
   <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
@@ -81,11 +81,15 @@
     </section>
     <footer><span>© NEXUS PLANNER</span><span>DESIGNED FOR CLARITY · BUILT FOR PRIVACY</span><button id="privacyBtn" class="footer-link">隐私与使用说明</button></footer>
   </main>
-  <dialog id="eventDialog" class="modal"><form id="eventForm" method="dialog"><div class="modal-heading"><div><p class="eyebrow">CREATE AN EVENT</p><h2 id="dialogTitle">新建日程</h2></div><button class="icon-button" type="button" id="closeDialog" aria-label="关闭">×</button></div><input type="hidden" id="eventId"><label class="field-label" for="eventTitle">事项名称 *</label><input id="eventTitle" required maxlength="120" placeholder="例如：项目讨论会"><div class="form-grid"><div><label class="field-label" for="eventDate">日期 *</label><input id="eventDate" type="date" required></div><div><label class="field-label" for="eventTime">开始时间</label><input id="eventTime" type="time"></div><div><label class="field-label" for="eventEnd">结束时间</label><input id="eventEnd" type="time"></div><div><label class="field-label" for="eventReminder">提前提醒</label><select id="eventReminder"><option value="0">不提醒</option><option value="5">5 分钟</option><option value="10">10 分钟</option><option value="15">15 分钟</option><option value="30">30 分钟</option><option value="60">1 小时</option></select></div></div><label class="field-label" for="eventLocation">地点（可选）</label><input id="eventLocation" maxlength="160" placeholder="线上 / 会议室 / 地址"><label class="field-label" for="eventNotes">备注（可选）</label><textarea id="eventNotes" rows="2" maxlength="1000" placeholder="补充信息"></textarea><label class="field-label" for="eventRepeat">重复规则</label><select id="eventRepeat"><option value="none">不重复</option><option value="daily">每天</option><option value="weekly">每周（同一星期）</option><option value="weekdays">每个工作日</option><option value="monthly">每月同日</option></select><p class="notice">重复日程当前按规则生成显示。编辑或删除重复日程时，建议先导出备份；单次例外编辑功能将在后续版本完善。</p><div class="modal-actions"><button type="button" class="secondary-btn" id="cancelDialog">取消</button><button type="submit" class="primary-btn">保存日程</button></div></form></dialog>
+  <dialog id="eventDialog" class="modal"><form id="eventForm" method="dialog"><div class="modal-heading"><div><p class="eyebrow">CREATE AN EVENT</p><h2 id="dialogTitle">新建日程</h2></div><button class="icon-button" type="button" id="closeDialog" aria-label="关闭">×</button></div><input type="hidden" id="eventId"><label class="field-label" for="eventTitle">事项名称 *</label><input id="eventTitle" required maxlength="120" placeholder="例如：项目讨论会"><div class="form-grid"><div><label class="field-label" for="eventDate">日期 *</label><input id="eventDate" type="date" required></div><div><label class="field-label" for="eventTime">开始时间</label><input id="eventTime" type="time"></div><div><label class="field-label" for="eventEnd">结束时间</label><input id="eventEnd" type="time"><label id="countdownOption" class="countdown-toggle" hidden><input id="eventCountdownEnabled" type="checkbox"> 开始时自动开启倒计时</label></div><div><label class="field-label" for="eventReminder">提前提醒</label><select id="eventReminder"><option value="0">不提醒</option><option value="5">5 分钟</option><option value="10">10 分钟</option><option value="15">15 分钟</option><option value="30">30 分钟</option><option value="60">1 小时</option></select></div></div><label class="field-label" for="eventLocation">地点（可选）</label><input id="eventLocation" maxlength="160" placeholder="线上 / 会议室 / 地址"><label class="field-label" for="eventNotes">备注（可选）</label><textarea id="eventNotes" rows="2" maxlength="1000" placeholder="补充信息"></textarea><label class="field-label" for="eventRepeat">重复规则</label><select id="eventRepeat"><option value="none">不重复</option><option value="daily">每天</option><option value="weekly">每周（同一星期）</option><option value="weekdays">每个工作日</option><option value="monthly">每月同日</option></select><p class="notice">重复日程当前按规则生成显示。编辑或删除重复日程时，建议先导出备份；单次例外编辑功能将在后续版本完善。</p><div class="modal-actions"><button type="button" class="secondary-btn" id="cancelDialog">取消</button><button type="submit" class="primary-btn">保存日程</button></div></form></dialog>
   <dialog id="infoDialog" class="modal info-modal"><div class="modal-heading"><div><p class="eyebrow">PRIVACY FIRST</p><h2 id="infoTitle">隐私与使用说明</h2></div><button class="icon-button" type="button" id="closeInfo" aria-label="关闭">×</button></div><div id="infoContent" class="info-content"></div><div class="modal-actions"><button class="primary-btn" id="okInfo">知道了</button></div></dialog>
+  <section id="countdownDock" class="countdown-dock" hidden aria-live="polite" aria-label="正在进行的限时任务">
+    <div class="countdown-dock-heading"><span aria-hidden="true">⌛</span><strong>正在进行的限时任务</strong></div>
+    <div id="countdownItems" class="countdown-items"></div>
+  </section>
   <div id="reminderOverlay" class="reminder-overlay" hidden role="alertdialog" aria-modal="true" aria-labelledby="reminderTitle">
     <div class="reminder-card">
-      <div class="reminder-badge"><span class="reminder-pulse"></span> 日程提醒</div>
+      <div class="reminder-badge"><span class="reminder-pulse"></span> <span id="reminderBadgeText">日程提醒</span></div>
       <h2 id="reminderTitle">日程标题</h2>
       <p id="reminderTime" class="reminder-time"></p>
       <p class="reminder-detail"><span aria-hidden="true">⌖</span> <span id="reminderLocation"></span></p>
