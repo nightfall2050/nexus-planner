@@ -602,15 +602,21 @@
     const keyword=raw.replace(/请帮我|请|帮我|把|给|项目|日程|长期任务|开启|打开|启用|开始|启动|取消|关闭|停用|禁用|不要|自动|倒计时|并且|以及|的|一下|改为|设为/g," ").replace(/今天|今日|明天|明日|后天|大后天|下周|下星期|这周|本周|(?:周|星期)[一二三四五六日天1-7]/g," ").replace(/(上午|早上|中午|下午|晚上|傍晚)?\s*\d{1,2}(?:(?:[:：]\d{1,2})|(?:[点时](?:\d{1,2}分?|半)?))?/g," ").replace(/\s+/g," ").trim();
     const hasExplicitDate=/(今天|今日|明天|明日|后天|大后天|下周|下星期|这周|本周|(?:周|星期)[一二三四五六日天1-7]|20\\d{2}[年./-]\\d{1,2}[月./-]\\d{1,2}|\\d{1,2}月\\d{1,2}日?)/.test(raw);
     const date=hasExplicitDate&&dateMatch.matched?dateMatch.date:"";
-    let candidates=state.events.filter(e=>(!longOnly||e.longTask)&&(!date||(e.longTask?e.date<=date&&(e.endDate||e.date)>=date:e.date===date)));
-    if(keyword.length>1)candidates=candidates.filter(e=>e.title.toLowerCase().includes(keyword.toLowerCase()));
-    if(!candidates.length){showDraft('<h4>没有找到目标事项</h4><p>请补充项目名称，或写明日期；系统不会删除或修改任何内容。</p>');return true;}
-    showDraft('<h4>'+(enabled?'开启':'取消')+'倒计时</h4><p>请选择要'+(enabled?'开启':'取消')+'倒计时的事项；选择后会打开编辑器，保存后才生效。</p>'+candidates.map(e=>'<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.date)+(e.longTask?' 至 '+esc(e.endDate||e.date):'')+' · '+esc(e.time||'无开始时间')+(e.endTime?' – '+esc(e.endTime):'')+' · '+(e.countdownEnabled?'当前已开启':'当前未开启')+'</p><button type="button" class="secondary-btn" data-countdown-id="'+esc(e.id)+'">选择并'+(enabled?'开启':'取消')+'</button></div>').join(''));
-    $("draftArea").querySelectorAll("[data-countdown-id]").forEach(btn=>btn.addEventListener("click",()=>{
-      const e=state.events.find(x=>x.id===btn.dataset.countdownId);if(!e)return;
-      openEditor(e,!!e.longTask);$("eventCountdownEnabled").checked=enabled;syncCountdownOption();
-      toast("已设置倒计时选项；请保存后生效");
-    }));
+    const initialDate=date||"";
+    const renderCountdownCandidates=(dateFilter,titleFilter)=>{
+      let candidates=state.events.filter(e=>(!longOnly||e.longTask)&&(!dateFilter||(e.longTask?e.date<=dateFilter&&(e.endDate||e.date)>=dateFilter:e.date===dateFilter)));
+      if(titleFilter.trim())candidates=candidates.filter(e=>e.title.toLocaleLowerCase().includes(titleFilter.trim().toLocaleLowerCase()));
+      showDraft('<h4>'+(enabled?'开启':'取消')+'倒计时</h4><p>请选择要'+(enabled?'开启':'取消')+'倒计时的事项；可以按日期和项目名称进一步搜索。选择后会打开编辑器，保存后才生效。</p><div class="draft-search-fields"><label class="field-label" for="countdownTargetDate">指定日期</label><input id="countdownTargetDate" type="date" value="'+esc(dateFilter)+'"><label class="field-label" for="countdownTargetTitle">项目名称搜索</label><div class="search-input-row"><input id="countdownTargetTitle" type="search" value="'+esc(titleFilter)+'" placeholder="输入项目名称关键词"><button type="button" class="secondary-btn" id="searchCountdownTarget">搜索</button></div></div>'+(candidates.length?candidates.map(e=>'<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.date)+(e.longTask?' 至 '+esc(e.endDate||e.date):'')+' · '+esc(e.time||'无开始时间')+(e.endTime?' – '+esc(e.endTime):'')+' · '+(e.countdownEnabled?'当前已开启':'当前未开启')+'</p><button type="button" class="secondary-btn" data-countdown-id="'+esc(e.id)+'">选择并'+(enabled?'开启':'取消')+'</button></div>').join(''):'<p class="notice">没有找到符合条件的事项。可以更换日期或缩短项目名称关键词。</p>'));
+      $("searchCountdownTarget").addEventListener("click",()=>renderCountdownCandidates($("countdownTargetDate").value,$("countdownTargetTitle").value));
+      $("countdownTargetTitle").addEventListener("keydown",ev=>{if(ev.key==="Enter"){ev.preventDefault();renderCountdownCandidates($("countdownTargetDate").value,$("countdownTargetTitle").value);}});
+      $("countdownTargetDate").addEventListener("change",()=>renderCountdownCandidates($("countdownTargetDate").value,$("countdownTargetTitle").value));
+      $("draftArea").querySelectorAll("[data-countdown-id]").forEach(btn=>btn.addEventListener("click",()=>{
+        const e=state.events.find(x=>x.id===btn.dataset.countdownId);if(!e)return;
+        openEditor(e,!!e.longTask);$("eventCountdownEnabled").checked=enabled;syncCountdownOption();
+        toast("已设置倒计时选项；请保存后生效");
+      }));
+    };
+    renderCountdownCandidates(initialDate,keyword);
     return true;
   }
 
