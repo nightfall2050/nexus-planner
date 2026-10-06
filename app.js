@@ -123,7 +123,31 @@
       return;
     }
     if(parsed.action==="edit") {
-      showDraft('<h4>修改现有日程</h4><p>为避免改错日程，目前不会把“修改/调整”指令直接新建成待办。请先在对应日程卡片上点击编辑；自然语言修改目标的自动匹配尚未确认。</p>');
+      const targetMatch = raw.match(/把(.+?)(?:改到|改成|改为|调整到|调整为|更改为|换成|改名为|名称改为|标题改为)/)
+        || raw.match(/(?:修改|调整|更改)(.+?)(?:为|到|成)/);
+      let targetTitle = (targetMatch ? targetMatch[1] : parsed.title)
+        .replace(/请帮我|请|帮我|下周|下星期|这周|本周|今天|今日|明天|明日|后天|大后天|(?:周|星期)[一二三四五六日天]|20\\d{2}[年./-]\\d{1,2}[月./-]\\d{1,2}日?|\\d{1,2}月\\d{1,2}日?/g, " ")
+        .replace(/\\s+/g, " ").trim();
+      const needle = targetTitle.replace(/\\s+/g, "").toLowerCase();
+      const candidates = occurrenceEvents(parsed.date).filter(e => {
+        const title = e.title.replace(/\\s+/g, "").toLowerCase();
+        return needle.length >= 1 && (title.includes(needle) || needle.includes(title));
+      });
+      if (!candidates.length) {
+        showDraft('<h4>未找到要修改的日程</h4><p>目标日期：'+esc(parsed.date)+'</p><p>没有找到标题与“'+esc(targetTitle||"未识别事项")+'”明确匹配的日程。没有任何内容被修改，也不会把这句话新建成待办。</p><p>请写明日期和原日程名称，例如“把下周一英语课改到下午 4 点”。</p>');
+        return;
+      }
+      const renameMatch = raw.match(/(?:改名为|名称改为|标题改为)([^，,。；;]+)/);
+      showDraft('<h4>请选择要修改的日程</h4><p>目标日期：'+esc(parsed.date)+'。选择后会打开编辑窗口，核对并保存才会生效。重复日程会修改整个系列。</p>'+candidates.map(e=>'<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.time||"无指定时间")+' · '+esc(e.repeat!=="none"?"重复系列": "单次日程")+(e.location?" · "+esc(e.location):"")+'</p><button type="button" class="secondary-btn" data-edit-id="'+esc(e.id)+'">选择并修改</button></div>').join(""));
+      $("draftArea").querySelectorAll("[data-edit-id]").forEach(btn=>btn.addEventListener("click",()=>{
+        const e=state.events.find(x=>x.id===btn.dataset.editId); if(!e)return;
+        editEvent(e.id);
+        if(!$("eventDialog").open)return;
+        if(parsed.time)$("eventTime").value=parsed.time;
+        if(/(?:地点|位置)\\s*(?:是|为|：|:)?|在\\s*[^，,。；;]+/.test(raw) && parsed.location)$("eventLocation").value=parsed.location;
+        if(renameMatch)$("eventTitle").value=renameMatch[1].trim();
+        toast("已填入修改建议；请检查后点击“保存日程”");
+      }));
       return;
     }
     showDraft('<h4>待确认草稿</h4><p><strong>事项：</strong>'+esc(parsed.title||"请补充事项名称")+'</p><p><strong>日期：</strong>'+esc(parsed.date)+'</p><p><strong>时间：</strong>'+esc(parsed.time||"未识别，请保存前填写")+'</p><p><strong>地点：</strong>'+esc(parsed.location||"未指定")+'</p><p><strong>重复：</strong>'+esc(repeatLabel(parsed.repeat)||"不重复")+'</p><p><strong>提醒：</strong>'+esc(parsed.reminder?parsed.reminder+" 分钟前":"关闭")+'</p><p class="notice">请检查标题、日期、时间、地点与重复规则后再保存。</p><div class="draft-buttons"><button class="secondary-btn" id="discardDraft">放弃</button><button class="primary-btn" id="useDraft">检查并编辑</button></div>');
