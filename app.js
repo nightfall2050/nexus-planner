@@ -170,11 +170,11 @@
   }
   function parseTimeRange(input) {
     const source=String(input||"");
-    const re=/(上午|早上|中午|下午|晚上|傍晚)?\s*(\d{1,2})(?:[:：点时](\d{1,2})分?)?/g;
+    const re=/(上午|早上|中午|下午|晚上|傍晚)?\s*(\d{1,2})(?:(?:[:：](\d{1,2}))|(?:[点时](\d{1,2})?分?))?/g;
     const tokens=[]; let m;
     while((m=re.exec(source))!==null) {
       if(!m[1]&&!/[:：点时]/.test(m[0])) continue;
-      const rawHour=Number(m[2]), minute=Number(m[3]||0);
+      const rawHour=Number(m[2]), minute=Number(m[3]||m[4]||0);
       if(rawHour>23||minute>59) continue;
       let hour=rawHour, period=m[1]||(tokens.length?tokens[0].period:"");
       if(/下午|晚上|傍晚/.test(period)&&hour<12)hour+=12;
