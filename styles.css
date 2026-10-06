@@ -96,3 +96,6 @@
  .study-priority{padding:3px 5px}
  .study-edit-btn{width:28px;height:28px}
 }
+
+/* Dedicated long-task entry and editor fields */
+.toolbar-create-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.long-natural-entry{margin-top:18px;padding-top:13px;border-top:1px solid var(--line)}#longTaskEndDateField[hidden]{display:none}@media(max-width:620px){.toolbar-create-actions{width:100%;display:grid;grid-template-columns:1fr 1fr}.toolbar-create-actions button{min-width:0;padding:10px 8px;font-size:11px}}
