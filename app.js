@@ -575,22 +575,22 @@
   $("clearSearchBtn").addEventListener("click",()=>{$("eventSearch").value="";renderSearchResults();$("eventSearch").focus();});
 
 
-  function openTitleChoice(date,suggestedTitle,onChoose){
-    const key=String(date||"");
-    const list=()=>occurrenceEvents(key).filter(e=>!e.longTask||e.date<=key&&(e.endDate||e.date)>=key);
-    const render=keyword=>{
+  function openTitleChoice(date,suggestedTitle,onChoose,longTask=false){
+    const defaultDate=String(date||"");
+    const render=(dateFilter,keyword)=>{
+      const key=String(dateFilter||defaultDate);
       const normalized=String(keyword||"").trim().toLocaleLowerCase();
-      const matches=list().filter(e=>!normalized||e.title.toLocaleLowerCase().includes(normalized));
-      showDraft('<h4>选择项目名称</h4><p>目标日期：'+esc(key)+'。你可以沿用这一天已有的项目名称，也可以新建一个项目。</p><label class="field-label" for="sameDayTitleSearch">搜索当天已有项目</label><div class="search-input-row"><input id="sameDayTitleSearch" type="search" value="'+esc(keyword||"")+'" placeholder="输入项目名称关键词"><button type="button" class="secondary-btn" id="sameDayTitleSearchBtn">搜索</button></div>'+matches.map(e=>'<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.time||"无指定时间")+(e.endTime?' – '+esc(e.endTime):'')+(e.longTask?' · 长期任务':'')+'</p><button type="button" class="secondary-btn" data-title-choice="'+esc(e.id)+'">使用这个项目名</button></div>').join('')+'<div class="draft-buttons"><button type="button" class="secondary-btn" id="createDistinctTitleBtn">新建项目</button><button type="button" class="primary-btn" id="useSuggestedTitleBtn">使用识别名称：'+esc(suggestedTitle||"新项目")+'</button></div>');
-      $("sameDayTitleSearchBtn").addEventListener("click",()=>render($("sameDayTitleSearch").value));
-      $("sameDayTitleSearch").addEventListener("keydown",ev=>{if(ev.key==="Enter"){ev.preventDefault();render($("sameDayTitleSearch").value);}});
-      $("draftArea").querySelectorAll("[data-title-choice]").forEach(btn=>btn.addEventListener("click",()=>{
-        const event=state.events.find(e=>e.id===btn.dataset.titleChoice);if(event)onChoose(event.title);
-      }));
+      const matches=occurrenceEvents(key).filter(e=>!e.longTask||e.date<=key&&(e.endDate||e.date)>=key).filter(e=>!normalized||e.title.toLocaleLowerCase().includes(normalized));
+      const listHtml=matches.length?matches.map(e=>'<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.time||"无指定时间")+(e.endTime?' – '+esc(e.endTime):'')+(e.longTask?' · 长期任务':'')+'</p><button type="button" class="secondary-btn" data-title-choice="'+esc(e.id)+'">使用这个项目名</button></div>').join(""):'<p class="notice">这一天没有符合条件的项目。你可以更换日期、修改关键词，或直接新建。</p>';
+      showDraft('<h4>选择项目名称</h4><p>无论自动识别是否找到项目，都可以浏览指定日期的项目、搜索关键词，或直接新建。</p><label class="field-label" for="sameDayTitleDate">指定日期（查看当天项目）</label><input id="sameDayTitleDate" type="date" value="'+esc(key)+'"><label class="field-label" for="sameDayTitleSearch">项目名称关键词搜索</label><div class="search-input-row"><input id="sameDayTitleSearch" type="search" value="'+esc(keyword||"")+'" placeholder="输入项目名称关键词"><button type="button" class="secondary-btn" id="sameDayTitleSearchBtn">搜索</button></div><div class="title-choice-list"><h5>'+esc(key)+' 当天已有项目</h5>'+listHtml+'</div><div class="draft-buttons"><button type="button" class="secondary-btn" id="createDistinctTitleBtn">新建'+(longTask?'长期任务':'日程')+'</button><button type="button" class="primary-btn" id="useSuggestedTitleBtn">使用识别名称：'+esc(suggestedTitle||"新项目")+'</button></div>');
+      $("sameDayTitleSearchBtn").addEventListener("click",()=>render($("sameDayTitleDate").value,$("sameDayTitleSearch").value));
+      $("sameDayTitleSearch").addEventListener("keydown",ev=>{if(ev.key==="Enter"){ev.preventDefault();render($("sameDayTitleDate").value,$("sameDayTitleSearch").value);}});
+      $("sameDayTitleDate").addEventListener("change",()=>render($("sameDayTitleDate").value,$("sameDayTitleSearch").value));
+      $("draftArea").querySelectorAll("[data-title-choice]").forEach(btn=>btn.addEventListener("click",()=>{const event=state.events.find(e=>e.id===btn.dataset.titleChoice);if(event)onChoose(event.title);}));
       $("createDistinctTitleBtn").addEventListener("click",()=>onChoose(""));
       $("useSuggestedTitleBtn").addEventListener("click",()=>onChoose(suggestedTitle||""));
     };
-    render("");
+    render(defaultDate,"");
   }
 
   function handleCountdownCommand(raw,longOnly=false){
@@ -662,7 +662,7 @@
         $("eventTime").value=startTime;$("eventEnd").value=endTime;
         $("eventCountdownEnabled").checked=countdownEnabled;syncCountdownOption();
         $("eventReminder").value=String(reminder);$("eventRepeat").value="none";
-      });
+      },true);
     });
   });
   $("parseBtn").addEventListener("click",()=>{
@@ -751,7 +751,7 @@
         const resultsHtml=candidates.length
           ? candidates.map(e=>{const sameNameCount=state.events.filter(x=>compact(x.title)===compact(e.title)).length;return '<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.occurrenceDate||e.date)+' · '+esc(e.time||"无指定时间")+(e.endTime?" – "+esc(e.endTime):"")+' · '+esc(e.repeat!=="none"?"重复系列":"单次日程")+(e.location?" · "+esc(e.location):"")+'</p><button type="button" class="secondary-btn" data-edit-id="'+esc(e.id)+'" data-edit-date="'+esc(e.occurrenceDate||e.date)+'" data-edit-mode="single">单日程修改</button>'+(e.repeat!=="none"||sameNameCount>1?'<button type="button" class="secondary-btn" data-edit-id="'+esc(e.id)+'" data-edit-date="'+esc(e.occurrenceDate||e.date)+'" data-edit-mode="series">统一修改所有同名日程</button>':"")+'</div>';}).join("")
           : '<p class="notice">在 '+esc(searchRange.label||parsed.date)+' 没有找到标题包含“'+esc(keyword||"（空关键词）")+'”的日程。你可以换个更短的关键词，或选择把这句话作为新待办草稿。</p>';
-        showDraft('<h4>按日期范围和标题关键词查找</h4><p>查找范围：'+esc(searchRange.label||parsed.date)+'。标题支持部分匹配，例如“英语”可以匹配更长的课程名称。</p><label class="field-label" for="editKeywordInput">项目标题关键词</label><div class="search-input-row"><input id="editKeywordInput" type="search" value="'+esc(keyword)+'" placeholder="输入项目标题中的几个字"><button type="button" class="secondary-btn" id="searchEditKeywordBtn">搜索</button></div>'+resultsHtml+(candidates.length?"":'<div class="draft-buttons"><button type="button" class="secondary-btn" id="createNewFromEditBtn">仍未找到？作为新待办草稿</button></div>')+'');
+        showDraft('<h4>按日期范围和标题关键词查找</h4><p>查找范围：'+esc(searchRange.label||parsed.date)+'。标题支持部分匹配，例如“英语”可以匹配更长的课程名称。</p><label class="field-label" for="editKeywordInput">项目标题关键词</label><div class="search-input-row"><input id="editKeywordInput" type="search" value="'+esc(keyword)+'" placeholder="输入项目标题中的几个字"><button type="button" class="secondary-btn" id="searchEditKeywordBtn">搜索</button></div>'+resultsHtml+'<div class="draft-buttons"><button type="button" class="secondary-btn" id="createNewFromEditBtn">新建日程（不使用已有项目）</button></div>');
         $("searchEditKeywordBtn").addEventListener("click",()=>renderEditSearch($("editKeywordInput").value.trim()));
         $("editKeywordInput").addEventListener("keydown",ev=>{if(ev.key==="Enter"){ev.preventDefault();renderEditSearch($("editKeywordInput").value.trim());}});
         $("draftArea").querySelectorAll("[data-edit-id]").forEach(btn=>btn.addEventListener("click",()=>applyEdit(btn.dataset.editId,btn.dataset.editDate,btn.dataset.editMode||"single")));
