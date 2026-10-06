@@ -1,6 +1,8 @@
 name: Deploy NEXUS Planner to GitHub Pages
 
 on:
+  pull_request:
+    branches: [main]
   push:
     branches: [main]
   workflow_dispatch:
@@ -29,11 +31,13 @@ jobs:
           grep -q 'name="viewport"' index.html
           echo "Basic checks passed."
       - name: Prepare Pages artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
           path: .
 
   deploy:
+    if: github.event_name != 'pull_request'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
