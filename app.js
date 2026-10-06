@@ -46,6 +46,7 @@
       snapshot();
       const key=context.occurrenceDate, oldOverrides=previous.overrides||{}, base=oldOverrides[key]||{};
       const updated={title,time,endTime,reminder,countdownEnabled,specialReminder,location:$("eventLocation").value.trim(),notes:$("eventNotes").value.trim()};
+      state.reminderQueue=state.reminderQueue.filter(entry=>!entry.key.startsWith(previous.id+"@"+key+":"));for(const queuedKey of state.reminderSnoozed.keys())if(queuedKey.startsWith(previous.id+"@"+key+":"))state.reminderSnoozed.delete(queuedKey);
       if(date!==key){
         previous.excludedDates=Array.isArray(previous.excludedDates)?previous.excludedDates:[];
         if(!previous.excludedDates.includes(key))previous.excludedDates.push(key);
