@@ -58,7 +58,7 @@
     const timingChanged=!!previous&&(["date","time","endTime","reminder"].some(k=>String(previous[k]||"")!==String(({date,time,endTime,reminder})[k]||""))||!!previous.countdownEnabled!==countdownEnabled);
     const reminderRevision=(previous?Number(previous.reminderRevision||0):0)+(timingChanged?1:0);
     const item={id:oldId||id(),title,date:context&&context.mode==="series"&&previous?previous.date:date,time,endTime,reminder,reminderRevision,countdownEnabled,specialReminder,location:$("eventLocation").value.trim(),notes:$("eventNotes").value.trim(),repeat:$("eventRepeat").value,done:previous?!!previous.done:false,excludedDates:Array.isArray(previous?.excludedDates)?previous.excludedDates:[],overrides:context&&context.mode==="series"?{}:(previous?.overrides||{})};
-    if(timingChanged&&oldId){state.reminderQueue=state.reminderQueue.filter(entry=>entry.event.id!==oldId);for(const key of state.reminderSnoozed.keys())if(key.startsWith(oldId+"@"))state.reminderSnoozed.delete(key);}
+    if(timingChanged&&oldId){const affectedIds=context&&context.mode==="series"&&Array.isArray(context.matchingIds)&&context.matchingIds.length?context.matchingIds:[oldId];const affected=new Set(affectedIds);state.reminderQueue=state.reminderQueue.filter(entry=>!affected.has(entry.event.id));for(const key of state.reminderSnoozed.keys())if(affectedIds.some(id=>key.startsWith(id+"@")))state.reminderSnoozed.delete(key);}
     snapshot();
     if(context&&context.mode==="series"&&Array.isArray(context.matchingIds)&&context.matchingIds.length){
       const ids=new Set(context.matchingIds);
@@ -106,8 +106,8 @@
         state.reminderQueue.push({key:key+":snooze:"+nowMs,event:item.event,kind:item.kind});
       }
     }
-    for(const e of state.events){
-      if(!e.time||e.done||!occurs(e,todayKey))continue;
+    for(const e of occurrenceEvents(todayKey)){
+      if(!e.time||e.done)continue;
       const start=parseDate(todayKey),parts=e.time.split(":").map(Number);
       if(parts.length<2||!Number.isFinite(parts[0])||!Number.isFinite(parts[1]))continue;
       start.setHours(parts[0],parts[1],0,0);
@@ -129,8 +129,8 @@
   function updateCountdowns(){
     const now=new Date(),todayKey=fmtDate(now),nowMs=now.getTime(),dock=$("countdownDock"),list=$("countdownItems");
     const running=[],currentKeys=new Set();
-    for(const e of state.events){
-      if(!e.countdownEnabled||!e.time||!e.endTime||e.done||!occurs(e,todayKey))continue;
+    for(const e of occurrenceEvents(todayKey)){
+      if(!e.countdownEnabled||!e.time||!e.endTime||e.done)continue;
       const start=parseDate(todayKey),end=parseDate(todayKey),sp=e.time.split(":").map(Number),ep=e.endTime.split(":").map(Number);
       start.setHours(sp[0],sp[1],0,0);end.setHours(ep[0],ep[1],0,0);
       if(nowMs>=start.getTime()&&nowMs<end.getTime()){
@@ -140,10 +140,9 @@
     }
     for(const key of state.countdownActive){
       if(currentKeys.has(key))continue;
-      const e=state.events.find(item=>key.startsWith(item.id+"@"));
+      const baseEvent=state.events.find(item=>key.startsWith(item.id+"@"));const day=key.slice(baseEvent?.id.length+1);const e=baseEvent?{...baseEvent,...(baseEvent.overrides&&baseEvent.overrides[day]||{})}:null;
       if(!e||e.done||!e.endTime||!e.time)continue;
-      const day=key.slice(e.id.length+1);
-      if(day!==todayKey)continue;
+      if(!e||day!==todayKey)continue;
       const end=parseDate(day),parts=e.endTime.split(":").map(Number);
       end.setHours(parts[0],parts[1],0,0);
       if(nowMs>=end.getTime())toast("限时任务时间已结束："+e.title);
