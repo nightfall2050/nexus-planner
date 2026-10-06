@@ -553,9 +553,31 @@
   }
   $("eventSearch").addEventListener("input",renderSearchResults);
   $("clearSearchBtn").addEventListener("click",()=>{$("eventSearch").value="";renderSearchResults();$("eventSearch").focus();});
+
+  function handleCountdownCommand(raw,longOnly=false){
+    if(!/(开启|打开|启用|开始|启动|取消|关闭|停用|禁用|不要).{0,5}倒计时|倒计时.{0,5}(开启|打开|启用|开始|启动|取消|关闭|停用|禁用)/.test(raw))return false;
+    const disable=/(取消|关闭|停用|禁用|不要).{0,5}倒计时|倒计时.{0,5}(取消|关闭|停用|禁用)/.test(raw);
+    const enabled=!disable;
+    const parsed=parseNatural(raw);
+    const dateMatch=parseTargetDate(raw);
+    const keyword=raw.replace(/请帮我|请|帮我|把|给|项目|日程|长期任务|开启|打开|启用|开始|启动|取消|关闭|停用|禁用|不要|自动|倒计时|并且|以及|的|一下|改为|设为/g," ").replace(/今天|今日|明天|明日|后天|大后天|下周|下星期|这周|本周|(?:周|星期)[一二三四五六日天1-7]/g," ").replace(/(上午|早上|中午|下午|晚上|傍晚)?\s*\d{1,2}(?:(?:[:：]\d{1,2})|(?:[点时](?:\d{1,2}分?|半)?))?/g," ").replace(/\s+/g," ").trim();
+    const date=dateMatch.matched?dateMatch.date:"";
+    let candidates=state.events.filter(e=>(!longOnly||e.longTask)&&(!date||e.longTask?( !date||e.date<=date&&(e.endDate||e.date)>=date):(!date||e.date===date)));
+    if(keyword.length>1)candidates=candidates.filter(e=>e.title.toLowerCase().includes(keyword.toLowerCase()));
+    if(!candidates.length){showDraft('<h4>没有找到目标事项</h4><p>请补充项目名称，或写明日期；系统不会删除或修改任何内容。</p>');return true;}
+    showDraft('<h4>'+(enabled?'开启':'取消')+'倒计时</h4><p>请选择要'+(enabled?'开启':'取消')+'倒计时的事项；选择后会打开编辑器，保存后才生效。</p>'+candidates.map(e=>'<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.date)+(e.longTask?' 至 '+esc(e.endDate||e.date):'')+' · '+esc(e.time||'无开始时间')+(e.endTime?' – '+esc(e.endTime):'')+' · '+(e.countdownEnabled?'当前已开启':'当前未开启')+'</p><button type="button" class="secondary-btn" data-countdown-id="'+esc(e.id)+'">选择并'+(enabled?'开启':'取消')+'</button></div>').join(''));
+    $("draftArea").querySelectorAll("[data-countdown-id]").forEach(btn=>btn.addEventListener("click",()=>{
+      const e=state.events.find(x=>x.id===btn.dataset.countdownId);if(!e)return;
+      openEditor(e,!!e.longTask);$("eventCountdownEnabled").checked=enabled;syncCountdownOption();
+      toast("已设置倒计时选项；请保存后生效");
+    }));
+    return true;
+  }
+
   $("parseLongTaskBtn").addEventListener("click",()=>{
     const raw=$("longTaskText").value.trim();
     if(!raw){toast("请描述长期任务的开始和结束日期");return;}
+    if(handleCountdownCommand(raw,true))return;
     const boundary=raw.match(/(?:到|至|结束于|截止于|结束时间为|截止时间为)\s*(.+)$/);
     if(!boundary){showDraft('<h4>还需要明确结束时间</h4><p>请使用“从今天早上9点开始……到明天下午5点结束”的表达。</p>');return;}
     const startText=raw.slice(0,boundary.index);
@@ -596,6 +618,8 @@
   });
   $("parseBtn").addEventListener("click",()=>{
     const raw=$("quickText").value,parsed=parseNatural(raw);
+    if(!raw.trim()){toast("先写下你想安排的事情");return;}
+    if(handleCountdownCommand(raw,false))return;
     if(!parsed){toast("先写下你想安排的事情");return;}
     if(parsed.action==="delete") {
       const candidates=occurrenceEvents(parsed.date).filter(e=>{
