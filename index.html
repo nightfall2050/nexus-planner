@@ -118,9 +118,10 @@
     </div>
   </section>
   <section id="countdownDock" class="countdown-dock" hidden aria-live="polite" aria-label="正在进行的限时任务">
-    <div class="countdown-dock-heading"><span aria-hidden="true">⌛</span><strong>正在进行的限时任务</strong></div>
+    <div class="countdown-dock-heading"><span aria-hidden="true">⌛</span><strong>正在进行的限时任务</strong><button type="button" id="minimizeCountdownBtn" class="countdown-minimize" aria-label="暂时收起倒计时">—</button></div>
     <div id="countdownItems" class="countdown-items"></div>
   </section>
+  <button type="button" id="countdownBubble" class="countdown-bubble" hidden aria-label="重新打开倒计时界面" title="重新打开倒计时">⌛<span id="countdownBubbleCount">0</span></button>
   <div id="reminderOverlay" class="reminder-overlay" hidden role="alertdialog" aria-modal="true" aria-labelledby="reminderTitle">
     <div class="reminder-card">
       <div class="reminder-badge"><span class="reminder-pulse"></span> <span id="reminderBadgeText">日程提醒</span></div>
