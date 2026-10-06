@@ -7,7 +7,10 @@
   function dateKey(d){return fmtDate(d);}
   function parseDate(s){const [y,m,d]=String(s).split("-").map(Number);return new Date(y,m-1,d,12);}
   function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
-  function load(){try{const raw=localStorage.getItem(STORAGE_KEY);if(raw){const data=JSON.parse(raw);if(data&&Array.isArray(data.events))state.events=data.events.filter(validEvent);}}catch(e){console.warn("Could not read local planner data",e);toast("本地数据无法读取；请勿清除浏览器数据。");}}
+  const REMINDER_SEEN_KEY="nexus-planner-reminder-seen-v1";
+  function loadReminderSeen(){try{const saved=JSON.parse(localStorage.getItem(REMINDER_SEEN_KEY)||"[]");if(Array.isArray(saved))saved.forEach(k=>{if(typeof k==="string")state.reminderSeen.add(k);});}catch(e){console.warn("Could not read reminder state",e);}}
+  function persistReminderSeen(){try{const today=fmtDate(new Date());const keys=[...state.reminderSeen].filter(k=>k.endsWith("@"+today));localStorage.setItem(REMINDER_SEEN_KEY,JSON.stringify(keys));}catch(e){console.warn("Could not persist reminder state",e);}}
+  function load(){try{const raw=localStorage.getItem(STORAGE_KEY);if(raw){const data=JSON.parse(raw);if(data&&Array.isArray(data.events))state.events=data.events.filter(validEvent);}}catch(e){console.warn("Could not read local planner data",e);toast("本地数据无法读取；请勿清除浏览器数据。");}loadReminderSeen();}
   function validEvent(e){return e&&typeof e.id==="string"&&typeof e.title==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(e.date)&&["none","daily","weekly","weekdays","monthly"].includes(e.repeat||"none");}
   function save(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify({version:1,events:state.events}));}catch(e){toast("保存失败：浏览器存储空间可能不足。");throw e;}}
   function snapshot(){state.undo=JSON.stringify(state.events);}
@@ -39,7 +42,7 @@
   $("dismissReminderBtn").addEventListener("click",closeReminder);
   $("snoozeReminderBtn").addEventListener("click",()=>{const item=state.activeReminder;if(!item)return;state.reminderSnoozed.set(item.key,{event:item.event,at:Date.now()+5*60000});toast("已延后 5 分钟提醒");closeReminder();});
   function checkReminders(){const now=new Date(),todayKey=fmtDate(now);for(const [key,item] of state.reminderSnoozed){if(now.getTime()>=item.at){state.reminderSnoozed.delete(key);state.reminderQueue.push({key:key+":snooze:"+now.getTime(),event:item.event});}}
-    for(const e of state.events){if(Number(e.reminder||0)<0||!e.time||e.done||!occurs(e,todayKey))continue;const start=parseDate(todayKey);const parts=e.time.split(":").map(Number);if(parts.length<2||!Number.isFinite(parts[0])||!Number.isFinite(parts[1]))continue;start.setHours(parts[0],parts[1],0,0);const when=start.getTime()-Number(e.reminder||0)*60000,delta=now.getTime()-when,key=e.id+"@"+todayKey;if(delta>=0&&delta<5*60000&&!state.reminderSeen.has(key)){state.reminderSeen.add(key);state.reminderQueue.push({key,event:e});}}
+    for(const e of state.events){if(Number(e.reminder||0)<0||!e.time||e.done||!occurs(e,todayKey))continue;const start=parseDate(todayKey);const parts=e.time.split(":").map(Number);if(parts.length<2||!Number.isFinite(parts[0])||!Number.isFinite(parts[1]))continue;start.setHours(parts[0],parts[1],0,0);const when=start.getTime()-Number(e.reminder||0)*60000,delta=now.getTime()-when,key=e.id+"@"+todayKey;if(delta>=0&&delta<15*60000&&!state.reminderSeen.has(key)){state.reminderSeen.add(key);persistReminderSeen();state.reminderQueue.push({key,event:e});}}
     showNextReminder();}
   $("notifyBtn").addEventListener("click",async()=>{if(!("Notification"in window)){ $("notifyStatus").textContent="此浏览器不支持系统通知";toast("当前浏览器不支持系统通知；页面内提醒仍可用。");return;}try{const p=await Notification.requestPermission();$("notifyStatus").textContent=p==="granted"?"系统通知已启用（网页需保持打开）":p==="denied"?"系统通知被拒绝，请在浏览器网站设置中允许":"尚未允许系统通知";if(p==="granted"){try{new Notification("NEXUS 提醒测试",{body:"系统通知已正常启用。请在日程中设置提前提醒。",tag:"nexus-notification-test"});toast("已发送测试通知；请检查系统通知区域。");}catch(_){toast("权限已开启，但系统通知发送失败；请检查设备通知设置。");}}else{toast(p==="denied"?"请在浏览器网站设置中允许通知。":"未获得通知权限");}}catch(_){toast("无法请求通知权限");}});
   const infoText='<h3>日程存在哪里？</h3><p>日程默认保存在此浏览器的本地存储中。网站代码是公开的，但本版本不会把日程上传到服务器，也没有账号跨设备同步。请勿在公用设备上输入敏感信息。</p><h3>如何保护和备份数据？</h3><ul><li>定期使用“导出备份”保存 JSON 文件，并妥善保管。</li><li>清除浏览器网站数据、使用无痕窗口或更换设备可能导致数据无法访问。</li><li>导入备份会替换当前日程，请先导出当前数据。</li><li>重复日程的编辑和删除会作用于整个系列；单次例外功能尚未实现。</li></ul><h3>提醒有什么限制？</h3><p>提醒依赖页面运行。关闭网页、浏览器休眠或设备关机时，不能保证准时通知；它不是可靠的后台推送或紧急通知服务。</p><h3>自然语言助手</h3><p>此版本仅对部分中文日期和时间表达生成草稿。请核对日期、时间、地点后再保存。它不会自动修改或删除现有日程，也不调用外部 AI 服务。</p><h3>关于版本</h3><p>这是早期版本。自然语言解析、重复日程单次例外、撤销持久化、完整自动化测试和更完善的无障碍体验会逐步完善。</p>';
@@ -217,5 +220,5 @@
   if ("serviceWorker" in navigator && location.protocol === "https:") {
     window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
   }
-  load();render();setInterval(checkReminders,15000);
+  load();render();checkReminders();setInterval(checkReminders,5000);window.addEventListener("focus",checkReminders);window.addEventListener("pageshow",checkReminders);document.addEventListener("visibilitychange",()=>{if(!document.hidden)checkReminders();});
 })();
