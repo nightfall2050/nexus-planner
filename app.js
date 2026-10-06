@@ -9,7 +9,7 @@
   function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
   const REMINDER_SEEN_KEY="nexus-planner-reminder-seen-v1";
   function loadReminderSeen(){try{const saved=JSON.parse(localStorage.getItem(REMINDER_SEEN_KEY)||"[]");if(Array.isArray(saved))saved.forEach(k=>{if(typeof k==="string")state.reminderSeen.add(k);});}catch(e){console.warn("Could not read reminder state",e);}}
-  function persistReminderSeen(){try{const today=fmtDate(new Date());const keys=[...state.reminderSeen].filter(k=>k.endsWith("@"+today));localStorage.setItem(REMINDER_SEEN_KEY,JSON.stringify(keys));}catch(e){console.warn("Could not persist reminder state",e);}}
+  function persistReminderSeen(){try{const today=fmtDate(new Date());const keys=[...state.reminderSeen].filter(k=>k.includes("@"+today+":")||k.endsWith("@"+today));localStorage.setItem(REMINDER_SEEN_KEY,JSON.stringify(keys));}catch(e){console.warn("Could not persist reminder state",e);}}
   function load(){try{const raw=localStorage.getItem(STORAGE_KEY);if(raw){const data=JSON.parse(raw);if(data&&Array.isArray(data.events))state.events=data.events.filter(validEvent);}}catch(e){console.warn("Could not read local planner data",e);toast("本地数据无法读取；请勿清除浏览器数据。");}loadReminderSeen();}
   function validEvent(e){return e&&typeof e.id==="string"&&typeof e.title==="string"&&/^\d{4}-\d{2}-\d{2}$/.test(e.date)&&["none","daily","weekly","weekdays","monthly"].includes(e.repeat||"none");}
   function save(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify({version:1,events:state.events}));}catch(e){toast("保存失败：浏览器存储空间可能不足。");throw e;}}
@@ -27,10 +27,26 @@
   function repeatLabel(r){return ({daily:"每天重复",weekly:"每周重复",weekdays:"工作日重复",monthly:"每月重复"})[r]||"";}
   function renderProgress(){const evs=occurrenceEvents(state.selected),done=evs.filter(e=>e.done).length,total=evs.length,pct=total?Math.round(done/total*100):0;$("progressCount").textContent=done+" / "+total;$("progressPercent").textContent=pct+"%";$("progressBar").style.width=pct+"%";}
   function toggleDone(eventId,key){snapshot();const e=state.events.find(x=>x.id===eventId);if(!e)return;e.done=!e.done;save();render();toast(e.done?"已标记完成":"已恢复为未完成");}
-  function openEditor(e){$("eventForm").reset();$("eventId").value=e?.id||"";$("dialogTitle").textContent=e?"编辑日程":"新建日程";$("eventTitle").value=e?.title||"";$("eventDate").value=e?.date||state.selected;$("eventTime").value=e?.time||"";$("eventEnd").value=e?.endTime||"";$("eventReminder").value=String(e?.reminder||0);$("eventLocation").value=e?.location||"";$("eventNotes").value=e?.notes||"";$("eventRepeat").value=e?.repeat||"none";$("eventDialog").showModal();setTimeout(()=>$("eventTitle").focus(),30);}
+  function syncCountdownOption(){const label=$("countdownOption");const enabled=!!$("eventEnd").value;if(label)label.hidden=!enabled;if(!enabled)$("eventCountdownEnabled").checked=false;}
+  function openEditor(e){$("eventForm").reset();$("eventId").value=e?.id||"";$("dialogTitle").textContent=e?"编辑日程":"新建日程";$("eventTitle").value=e?.title||"";$("eventDate").value=e?.date||state.selected;$("eventTime").value=e?.time||"";$("eventEnd").value=e?.endTime||"";$("eventReminder").value=String(e?.reminder||0);$("eventLocation").value=e?.location||"";$("eventNotes").value=e?.notes||"";$("eventRepeat").value=e?.repeat||"none";$("eventCountdownEnabled").checked=!!e?.countdownEnabled;syncCountdownOption();$("eventDialog").showModal();setTimeout(()=>$("eventTitle").focus(),30);}
+  $("eventEnd").addEventListener("input",syncCountdownOption);
   function editEvent(eventId){const e=state.events.find(x=>x.id===eventId);if(!e)return;if(e.repeat!=="none"&&!confirm("这是重复日程。此版本编辑会修改整个重复系列（包括未来日期），而不是只修改当天。继续吗？"))return;openEditor(e);}
   function deleteEvent(eventId){const e=state.events.find(x=>x.id===eventId);if(!e)return;const message=e.repeat!=="none"?"这会删除整个重复系列，而不是只删除当天。建议先导出备份。确定删除？":"确定删除“"+e.title+"”？";if(!confirm(message))return;snapshot();state.events=state.events.filter(x=>x.id!==eventId);save();render();toast("日程已删除。可用撤销恢复。");}
-  $("eventForm").addEventListener("submit",ev=>{ev.preventDefault();const title=$("eventTitle").value.trim(),date=$("eventDate").value,time=$("eventTime").value,endTime=$("eventEnd").value,reminder=Number($("eventReminder").value);if(!title||!date){toast("请填写事项名称和日期");return;}if(time&&endTime&&endTime<time){toast("结束时间不能早于开始时间");return;}const oldId=$("eventId").value;const item={id:oldId||id(),title,date,time,endTime,reminder,location:$("eventLocation").value.trim(),notes:$("eventNotes").value.trim(),repeat:$("eventRepeat").value,done:oldId?(state.events.find(e=>e.id===oldId)?.done||false):false};snapshot();if(oldId)state.events=state.events.map(e=>e.id===oldId?item:e);else state.events.push(item);save();state.selected=date;const parsed=parseDate(date);state.cursor=new Date(parsed.getFullYear(),parsed.getMonth(),1);$("eventDialog").close();render();toast(oldId?"日程已更新":"日程已保存到当前浏览器");});
+  $("eventForm").addEventListener("submit",ev=>{
+    ev.preventDefault();
+    const title=$("eventTitle").value.trim(),date=$("eventDate").value,time=$("eventTime").value,endTime=$("eventEnd").value,reminder=Number($("eventReminder").value),countdownEnabled=!!$("eventCountdownEnabled").checked&&!!endTime;
+    if(!title||!date){toast("请填写事项名称和日期");return;}
+    if(endTime&&!time){toast("设置结束时间前，请先填写开始时间");return;}
+    if(time&&endTime&&endTime<=time){toast("结束时间必须晚于开始时间");return;}
+    if(countdownEnabled&&!time){toast("自动倒计时需要开始时间");return;}
+    const oldId=$("eventId").value,previous=oldId?state.events.find(e=>e.id===oldId):null;
+    const timingChanged=!!previous&&(["date","time","endTime","reminder"].some(k=>String(previous[k]||"")!==String(({date,time,endTime,reminder})[k]||""))||!!previous.countdownEnabled!==countdownEnabled);
+    const reminderRevision=(previous?Number(previous.reminderRevision||0):0)+(timingChanged?1:0);
+    const item={id:oldId||id(),title,date,time,endTime,reminder,reminderRevision,countdownEnabled,location:$("eventLocation").value.trim(),notes:$("eventNotes").value.trim(),repeat:$("eventRepeat").value,done:previous?!!previous.done:false,excludedDates:Array.isArray(previous?.excludedDates)?previous.excludedDates:[]};
+    snapshot();
+    if(oldId)state.events=state.events.map(e=>e.id===oldId?item:e);else state.events.push(item);
+    save();state.selected=date;const parsed=parseDate(date);state.cursor=new Date(parsed.getFullYear(),parsed.getMonth(),1);$("eventDialog").close();render();checkReminders();updateCountdowns();toast(oldId?"日程已更新":"日程已保存到当前浏览器");
+  });
   $("addBtn").addEventListener("click",()=>openEditor());$("addForDayBtn").addEventListener("click",()=>openEditor());$("closeDialog").addEventListener("click",()=>$("eventDialog").close());$("cancelDialog").addEventListener("click",()=>$("eventDialog").close());
   $("prevBtn").addEventListener("click",()=>{if(state.view==="day"){const d=parseDate(state.selected);d.setDate(d.getDate()-1);state.selected=fmtDate(d);state.cursor=new Date(d.getFullYear(),d.getMonth(),1);}else state.cursor=new Date(state.cursor.getFullYear(),state.cursor.getMonth()-1,1);render();});
   $("nextBtn").addEventListener("click",()=>{if(state.view==="day"){const d=parseDate(state.selected);d.setDate(d.getDate()+1);state.selected=fmtDate(d);state.cursor=new Date(d.getFullYear(),d.getMonth(),1);}else state.cursor=new Date(state.cursor.getFullYear(),state.cursor.getMonth()+1,1);render();});
