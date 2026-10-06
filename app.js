@@ -123,9 +123,9 @@
       return;
     }
     if(parsed.action==="edit") {
-      const compact = value => String(value || "").replace(/[\\s的这条个]/g, "").toLowerCase();
+      const compact = value => String(value || "").replace(/[\s的这条个]/g, "").toLowerCase();
       const rawCompact = compact(raw);
-      const destinationMatch = raw.match(/(?:改到|移到|调整到|更改到|日期改为|日期改成)\\s*(下周|下星期|这周|本周|周|星期)([一二三四五六日天1-7])/);
+      const destinationMatch = raw.match(/(?:改到|移到|调整到|更改到|日期改为|日期改成)\s*(下周|下星期|这周|本周|周|星期)([一二三四五六日天1-7])/);
       let destinationDate = "";
       if (destinationMatch) {
         const now = new Date(), map = {一:1,二:2,三:3,四:4,五:5,六:6,日:0,天:0,"1":1,"2":2,"3":3,"4":4,"5":5,"6":6,"7":0};
@@ -140,7 +140,7 @@
         }
         if (monday) { monday.setDate(monday.getDate()+offset); destinationDate=fmtDate(monday); }
       }
-      const locationChange = raw.match(/(?:地点|位置)\\s*(?:设置\\s*(?:为|成|到)|设定\\s*(?:为|成|到)|改\\s*(?:为|成|到)|调整\\s*(?:为|成|到)|更改\\s*(?:为|成|到)|改为|改成|调整为|更改为|设为|为|是)\\s*([^，,。；;]+)/);
+      const locationChange = raw.match(/(?:地点|位置)\s*(?:设置\s*(?:为|成|到)|设定\s*(?:为|成|到)|改\s*(?:为|成|到)|调整\s*(?:为|成|到)|更改\s*(?:为|成|到)|改为|改成|调整为|更改为|设为|为|是)\s*([^，,。；;]+)/);
       const renameMatch = raw.match(/(?:改名为|名称改为|标题改为)([^，,。；;]+)/);
       let candidates = occurrenceEvents(parsed.date).filter(e => rawCompact.includes(compact(e.title)));
       if (!candidates.length && destinationDate && /(?:明天|明日|今天|今日|后天|大后天)/.test(raw) && /把/.test(raw)) candidates = occurrenceEvents(parsed.date);
@@ -154,7 +154,7 @@
         editEvent(e.id);
         if(!$("eventDialog").open)return;
         if(parsed.time)$("eventTime").value=parsed.time;
-        if(locationChange)$("eventLocation").value=locationChange[1].trim().replace(/^(为|成|到)\\s*/,"");
+        if(locationChange)$("eventLocation").value=locationChange[1].trim().replace(/^(为|成|到)\s*/,"");
         if(destinationDate)$("eventDate").value=destinationDate;
         if(renameMatch)$("eventTitle").value=renameMatch[1].trim();
         toast("已填入修改建议；请检查日期、地点等内容后点击“保存日程”");
