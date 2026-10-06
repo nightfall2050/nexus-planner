@@ -110,7 +110,7 @@
     const query = input.value.trim().toLocaleLowerCase();
     area.innerHTML = "";
     if (!query) { area.hidden = true; hint.textContent = "输入关键词即可搜索全部日程；多个关键词可用空格分隔。"; return; }
-    const terms = query.split(/\\s+/).filter(Boolean);
+    const terms = query.split(/\s+/).filter(Boolean);
     const results = state.events.filter(e => {
       const d = parseDate(e.date);
       const dateText = e.date + " " + d.getFullYear()+"年"+(d.getMonth()+1)+"月"+d.getDate()+"日";
