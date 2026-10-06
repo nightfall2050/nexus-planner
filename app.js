@@ -71,8 +71,49 @@
   $("prevBtn").addEventListener("click",()=>{if(state.view==="day"){const d=parseDate(state.selected);d.setDate(d.getDate()-1);state.selected=fmtDate(d);state.cursor=new Date(d.getFullYear(),d.getMonth(),1);}else state.cursor=new Date(state.cursor.getFullYear(),state.cursor.getMonth()-1,1);render();});
   $("nextBtn").addEventListener("click",()=>{if(state.view==="day"){const d=parseDate(state.selected);d.setDate(d.getDate()+1);state.selected=fmtDate(d);state.cursor=new Date(d.getFullYear(),d.getMonth(),1);}else state.cursor=new Date(state.cursor.getFullYear(),state.cursor.getMonth()+1,1);render();});
   $("todayBtn").addEventListener("click",()=>{state.selected=dateKey(new Date());state.cursor=new Date(new Date().getFullYear(),new Date().getMonth(),1);render();});document.querySelectorAll(".view-btn").forEach(b=>b.addEventListener("click",()=>{state.view=b.dataset.view;renderCalendar();}));
-  $("exportBtn").addEventListener("click",()=>{const blob=new Blob([JSON.stringify({app:"NEXUS Planner",version:1,exportedAt:new Date().toISOString(),events:state.events},null,2)],{type:"application/json"});const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="nexus-planner-backup-"+dateKey(new Date())+".json";a.click();URL.revokeObjectURL(url);toast("备份文件已生成");});
-  $("importBtn").addEventListener("click",()=>$("importFile").click());$("importFile").addEventListener("change",async ev=>{const file=ev.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text()),events=Array.isArray(data)?data:data.events;if(!Array.isArray(events)||!events.every(validEvent))throw new Error("invalid");if(!confirm("将导入 "+events.length+" 条日程。选择“确定”会用备份内容替换当前全部日程；建议先导出现有备份。继续？"))return;snapshot();state.events=events;save();render();toast("备份导入完成");}catch(e){toast("文件格式不正确，未更改当前日程。");}finally{ev.target.value="";}});
+  const RECOVERY_BACKUP_KEY="nexus-planner-pre-import-backup-v1";
+  function backupPayload(){return {app:"NEXUS Planner",version:2,exportedAt:new Date().toISOString(),events:state.events,reminderSeen:[...state.reminderSeen]};}
+  function downloadBackup(payload,filename){const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+  function updateRecoveryButton(){const button=$("restoreImportBackupBtn");if(button)button.hidden=!localStorage.getItem(RECOVERY_BACKUP_KEY);}
+  $("exportBtn").addEventListener("click",()=>{downloadBackup(backupPayload(),"nexus-planner-backup-"+dateKey(new Date())+".json");toast("备份已导出，包含日程、重复规则、单次修改和提醒状态。");});
+  $("importBtn").addEventListener("click",()=>$("importFile").click());
+  $("importFile").addEventListener("change",async ev=>{
+    const file=ev.target.files?.[0];if(!file)return;
+    try{
+      const data=JSON.parse(await file.text()),events=Array.isArray(data)?data:data?.events;
+      if(!Array.isArray(events)||!events.every(validEvent)||events.some(e=>!e.title.trim()||!Number.isFinite(Date.parse(e.date+"T12:00:00"))))throw new Error("invalid");
+      const seen=Array.isArray(data?.reminderSeen)?data.reminderSeen.filter(k=>typeof k==="string"): [];
+      const exportedAt=typeof data?.exportedAt==="string"?new Date(data.exportedAt).toLocaleString():"旧版备份（未记录导出时间）";
+      const ok=confirm("备份文件："+file.name+"\n导出时间："+exportedAt+"\n包含 "+events.length+" 条日程。\n\n导入会替换本设备当前的全部日程。继续后，系统会先自动保存一份导入前数据，之后可点击“恢复导入前数据”还原。\n\n确定导入吗？");
+      if(!ok)return;
+      const current=JSON.stringify(backupPayload());
+      localStorage.setItem(RECOVERY_BACKUP_KEY,current);
+      const previousEvents=state.events,previousSeen=[...state.reminderSeen];
+      try{
+        state.events=events;save();
+        state.reminderSeen.clear();seen.forEach(k=>state.reminderSeen.add(k));persistReminderSeen();
+      }catch(error){
+        state.events=previousEvents;state.reminderSeen.clear();previousSeen.forEach(k=>state.reminderSeen.add(k));
+        try{localStorage.setItem(STORAGE_KEY,JSON.stringify({version:1,events:previousEvents}));persistReminderSeen();}catch(_){}
+        throw error;
+      }
+      snapshot();updateRecoveryButton();render();toast("备份导入完成；如需撤回，可恢复导入前数据。");
+    }catch(e){toast("备份无法读取或格式不受支持，当前日程未主动替换。");}
+    finally{ev.target.value="";}
+  });
+  $("restoreImportBackupBtn").addEventListener("click",()=>{
+    let backup;
+    try{backup=JSON.parse(localStorage.getItem(RECOVERY_BACKUP_KEY)||"null");}catch(_){}
+    if(!backup||!Array.isArray(backup.events)||!backup.events.every(validEvent)){toast("没有可用的导入前备份。");updateRecoveryButton();return;}
+    if(!confirm("将恢复导入前保存的 "+backup.events.length+" 条日程，并替换当前全部日程。确定恢复吗？"))return;
+    const current=JSON.stringify(backupPayload());
+    try{
+      state.events=backup.events;save();
+      state.reminderSeen.clear();(Array.isArray(backup.reminderSeen)?backup.reminderSeen:[]).filter(k=>typeof k==="string").forEach(k=>state.reminderSeen.add(k));persistReminderSeen();
+      localStorage.setItem(RECOVERY_BACKUP_KEY,current);snapshot();render();toast("已恢复；当前数据已另存为下一份恢复点。");
+    }catch(e){toast("恢复失败，存储空间可能不足。");}
+  });
+  updateRecoveryButton();
   function showNextReminder(){
     if(state.activeReminder||state.startupSummaryActive||state.startupSummaryQueue.length||!state.reminderQueue.length)return;
     const item=state.reminderQueue.shift();state.activeReminder=item;
