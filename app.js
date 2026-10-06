@@ -342,7 +342,7 @@
     const editMarker=raw.match(/(?:设为特别提醒|设置为特别提醒|标记为特别提醒|加上特别提醒|修改为|修改成|修改到|调整为|调整成|调整到|更改为|更改成|更改到|设置为|设置成|设定为|设定成|改为|改成|改到|换成)/);
     const isEdit=/(修改|改成|改为|调整|更改|设置|设定|设为特别提醒|标星|特别提醒|把.+换成|把.+改到|把.+移到|把.+日期改)/.test(raw);
     const sourceText=isEdit&&editMarker?raw.slice(0,editMarker.index):raw;
-    const range=getTargetDateRange(sourceText); const target=range?{date:range.start,matched:true}:parseTargetDate(sourceText);
+    const range=isEdit?getTargetDateRange(sourceText):null; const target=range?{date:range.start,matched:true}:parseTargetDate(sourceText);
     const timeText=isEdit&&editMarker?raw.slice(editMarker.index+editMarker[0].length):raw;
     const timeParts=parseTimeRange(timeText);
     const time=timeParts.time, endTime=timeParts.endTime;
@@ -434,7 +434,7 @@
     }
     if(parsed.action==="edit") {
       const compact = value => String(value || "").toLocaleLowerCase().replace(/[\s的这条个]/g, "");
-      const editMarker = raw.match(/(?:修改为|修改成|修改到|调整为|调整成|调整到|更改为|更改成|更改到|设置为|设置成|设定为|设定成|改为|改成|改到|换成)/);
+      const editMarker = raw.match(/(?:设为特别提醒|设置为特别提醒|标记为特别提醒|加上特别提醒|修改为|修改成|修改到|调整为|调整成|调整到|更改为|更改成|更改到|设置为|设置成|设定为|设定成|改为|改成|改到|换成)/);
       const destinationText = editMarker ? raw.slice(editMarker.index + editMarker[0].length) : "";
       const destinationParsed = destinationText ? parseTargetDate(destinationText) : null;
       let destinationDate = destinationParsed && destinationParsed.matched ? destinationParsed.date : "";
@@ -460,7 +460,7 @@
         .replace(/大后天|后天|明天|明日|今天|今日|(?:下周|下星期|这周|本周)[一二三四五六日天1-7]?|(?:周|星期)[一二三四五六日天1-7]|20\\d{2}[年./-]\\d{1,2}[月./-]\\d{1,2}日?|\\d{1,2}月\\d{1,2}日?/g," ")
         .replace(/(上午|早上|中午|下午|晚上|傍晚)?\s*\d{1,2}(?:(?:[:：]\d{1,2})|(?:[点时](?:\d{1,2}分?|半)?))?/g," ")
         .replace(/提前\s*\d+\s*分钟?提醒/g," ")
-        .replace(/(?:时间|日期|地点|位置|标题|名称|提醒)$/g,"")
+        .replace(/(?:时间|日期|地点|位置|标题|名称|提醒|特别提醒|重点提醒|星标|标星|设为)$/g,"")
         .replace(/[的这条个：:，,。；;\s]/g,"").trim();
       const searchRange=parsed.dateRange||{start:parsed.date,end:parsed.date,label:parsed.date};const candidateDates=[];for(let d=parseDate(searchRange.start),end=parseDate(searchRange.end);d<=end;d.setDate(d.getDate()+1))candidateDates.push(fmtDate(d));const eventCandidates=[...new Map(candidateDates.flatMap(key=>occurrenceEvents(key).map(e=>[e.seriesId+"@"+key,e]))).values()];
       const findMatches = keyword => {
@@ -474,7 +474,7 @@
       const applyEdit = (eventId,occurrenceDate,mode) => {
         const e=state.events.find(x=>x.id===eventId);if(!e)return;
         state.occurrenceEditContext={occurrenceDate,mode};
-        openEditor({...e,...(e.overrides&&e.overrides[occurrenceDate]||{}),date:mode==="single"?occurrenceDate:e.date});
+        openEditor(mode==="single"?{...e,...(e.overrides&&e.overrides[occurrenceDate]||{}),date:occurrenceDate}:e);
         if(!$("eventDialog").open)return;
         if(parsed.time)$("eventTime").value=parsed.time;
         if(parsed.endTime){$("eventEnd").value=parsed.endTime;syncCountdownOption();}
