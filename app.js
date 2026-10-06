@@ -3,7 +3,7 @@
   const $ = (id) => document.getElementById(id);
   const STORAGE_KEY = "nexus-planner-v1";
   function fmtDate(d) { return [d.getFullYear(), String(d.getMonth()+1).padStart(2,"0"), String(d.getDate()).padStart(2,"0")].join("-"); }
-  const state = { events: [], selected: dateKey(new Date()), cursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), view: "month", undo: null, reminderSeen: new Set(), reminderQueue: [], activeReminder: null, reminderSnoozed: new Map(), countdownActive: new Set(), startupSummaryQueue: [], startupSummaryActive: null, toastTimer: null };
+  const state = { events: [], selected: dateKey(new Date()), cursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), view: "month", undo: null, reminderSeen: new Set(), reminderQueue: [], activeReminder: null, reminderSnoozed: new Map(), countdownActive: new Set(), startupSummaryQueue: [], startupSummaryActive: null, occurrenceEditContext: null, toastTimer: null };
   function dateKey(d){return fmtDate(d);}
   function parseDate(s){const [y,m,d]=String(s).split("-").map(Number);return new Date(y,m-1,d,12);}
   function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
@@ -18,19 +18,20 @@
   function toast(message){const el=$("toast");el.textContent=message;el.classList.add("show");clearTimeout(state.toastTimer);state.toastTimer=setTimeout(()=>el.classList.remove("show"),3000);}
   function id(){return "evt-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,8);}
   function occurs(e,key){if(key<e.date)return false;if(Array.isArray(e.excludedDates)&&e.excludedDates.includes(key))return false;const d=parseDate(key),start=parseDate(e.date);switch(e.repeat||"none"){case"none":return key===e.date;case"daily":return true;case"weekly":return d.getDay()===start.getDay();case"weekdays":return d.getDay()!==0&&d.getDay()!==6;case"monthly":return d.getDate()===start.getDate();default:return key===e.date;}}
-  function occurrenceEvents(key){return state.events.filter(e=>occurs(e,key)).map(e=>({...e,occurrenceDate:key,seriesId:e.id})).sort((a,b)=>(a.time||"99:99").localeCompare(b.time||"99:99"));}
+  function occurrenceEvents(key){return state.events.filter(e=>occurs(e,key)).map(e=>({...e,...(e.overrides&&e.overrides[key]||{}),occurrenceDate:key,seriesId:e.id,repeat:e.repeat||"none"})).sort((a,b)=>(a.time||"99:99").localeCompare(b.time||"99:99"));}
   function monthEvents(y,m){const first=new Date(y,m,1),last=new Date(y,m+1,0),out=[];for(let d=1;d<=last.getDate();d++){const key=fmtDate(new Date(y,m,d));const ev=occurrenceEvents(key);out.push({key,day:d,ev,outside:false});}return {first,last,days:out};}
   function render(){renderCalendar();renderDay();renderProgress();checkReminders();updateCountdowns();updateSpecialSummaryLive();}
   function renderCalendar(){const y=state.cursor.getFullYear(),m=state.cursor.getMonth();$("periodTitle").textContent=state.view==="day"?state.selected:state.cursor.toLocaleDateString("zh-CN",{year:"numeric",month:"long"});$("calendarHeading").textContent=state.view==="day"?"单日安排":"日历概览";$("calendarGrid").classList.toggle("day-view",state.view==="day");document.querySelectorAll(".view-btn").forEach(b=>b.classList.toggle("active",b.dataset.view===state.view));const grid=$("calendarGrid");grid.innerHTML="";if(state.view==="day"){const selected=parseDate(state.selected);const start=new Date(selected);start.setDate(selected.getDate()-selected.getDay());for(let i=0;i<7;i++){const d=new Date(start);d.setDate(start.getDate()+i);grid.append(makeDayCell(fmtDate(d),d.getDate(),d.getMonth()!==selected.getMonth()));}return;}const first=new Date(y,m,1),offset=first.getDay(),days=new Date(y,m+1,0).getDate(),prevDays=new Date(y,m,0).getDate();for(let i=0;i<42;i++){let d,key,outside=false;if(i<offset){d=prevDays-offset+i+1;key=fmtDate(new Date(y,m-1,d));outside=true;}else if(i>=offset+days){d=i-offset-days+1;key=fmtDate(new Date(y,m+1,d));outside=true;}else{d=i-offset+1;key=fmtDate(new Date(y,m,d));}grid.append(makeDayCell(key,d,outside));}}
   function makeDayCell(key,day,outside){const btn=document.createElement("button");btn.type="button";btn.className="calendar-day"+(outside?" outside":"")+(key===state.selected?" selected":"")+(key===dateKey(new Date())?" today":"");btn.setAttribute("aria-label",key+" 日程");const number=document.createElement("span");number.className="day-number";number.textContent=day;btn.append(number);const evs=occurrenceEvents(key);if(evs.length){const wrap=document.createElement("span");wrap.className="day-events";evs.slice(0,2).forEach(e=>{const chip=document.createElement("span");chip.className="event-chip"+(e.done?" done":(!e.time?" todo":""));chip.textContent=(e.specialReminder?"★ ":"")+(e.time?e.time+" ":"")+e.title;if(e.specialReminder)chip.classList.add("special-event-chip");wrap.append(chip);});btn.append(wrap);if(evs.length>2){const more=document.createElement("span");more.className="more-chip";more.textContent="+"+(evs.length-2)+" 项";btn.append(more);}}btn.addEventListener("click",()=>{state.selected=key;state.cursor=new Date(parseDate(key).getFullYear(),parseDate(key).getMonth(),1);render();});return btn;}
-  function renderDay(){const d=parseDate(state.selected),evs=occurrenceEvents(state.selected);$("selectedHeading").textContent=d.toLocaleDateString("zh-CN",{month:"long",day:"numeric",weekday:"long"});$("selectedBadge").textContent=state.selected.slice(5);const list=$("eventList");list.innerHTML="";if(!evs.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">⌁</div>这一天还没有安排。<br>给自己留一点可能性。</div>';return;}evs.forEach(e=>{const card=document.createElement("article");card.className="event-card"+(e.done?" done":"")+(e.time?"":" todo");const time=e.time?(e.endTime?e.time+" – "+e.endTime:e.time+" · 待办"):(e.repeat!=="none"?"重复日程":"待办事项");card.innerHTML='<span class="event-stripe"></span><div class="event-main"><div class="event-time">'+esc(time)+(e.repeat!=="none"?' · '+repeatLabel(e.repeat):"")+'</div><div class="event-title">'+(e.specialReminder?'<span class="special-star" aria-label="特别提醒">★</span> ':"")+esc(e.title)+'</div>'+(e.location?'<div class="event-meta">⌖ '+esc(e.location)+'</div>':"")+(e.notes?'<div class="event-meta">'+esc(e.notes)+'</div>':"")+'</div><div class="event-actions"><button class="check-btn '+(e.done?"checked":"")+'" title="'+(e.done?"标记未完成":"标记完成")+'" aria-label="'+(e.done?"标记未完成":"标记完成")+'">'+(e.done?"✓":"○")+'</button><button class="mini-btn" title="编辑" aria-label="编辑">✎</button><button class="mini-btn" title="删除" aria-label="删除">×</button></div>';const buttons=card.querySelectorAll("button");buttons[0].addEventListener("click",()=>toggleDone(e.seriesId,e.occurrenceDate));buttons[1].addEventListener("click",()=>editEvent(e.seriesId));buttons[2].addEventListener("click",()=>deleteEvent(e.seriesId));list.append(card);});}
+  function renderDay(){const d=parseDate(state.selected),evs=occurrenceEvents(state.selected);$("selectedHeading").textContent=d.toLocaleDateString("zh-CN",{month:"long",day:"numeric",weekday:"long"});$("selectedBadge").textContent=state.selected.slice(5);const list=$("eventList");list.innerHTML="";if(!evs.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">⌁</div>这一天还没有安排。<br>给自己留一点可能性。</div>';return;}evs.forEach(e=>{const card=document.createElement("article");card.className="event-card"+(e.done?" done":"")+(e.time?"":" todo");const time=e.time?(e.endTime?e.time+" – "+e.endTime:e.time+" · 待办"):(e.repeat!=="none"?"重复日程":"待办事项");card.innerHTML='<span class="event-stripe"></span><div class="event-main"><div class="event-time">'+esc(time)+(e.repeat!=="none"?' · '+repeatLabel(e.repeat):"")+'</div><div class="event-title">'+(e.specialReminder?'<span class="special-star" aria-label="特别提醒">★</span> ':"")+esc(e.title)+'</div>'+(e.location?'<div class="event-meta">⌖ '+esc(e.location)+'</div>':"")+(e.notes?'<div class="event-meta">'+esc(e.notes)+'</div>':"")+'</div><div class="event-actions"><button class="check-btn '+(e.done?"checked":"")+'" title="'+(e.done?"标记未完成":"标记完成")+'" aria-label="'+(e.done?"标记未完成":"标记完成")+'">'+(e.done?"✓":"○")+'</button><button class="mini-btn" title="编辑" aria-label="编辑">✎</button><button class="mini-btn" title="删除" aria-label="删除">×</button></div>';const buttons=card.querySelectorAll("button");buttons[0].addEventListener("click",()=>toggleDone(e.seriesId,e.occurrenceDate));buttons[1].addEventListener("click",()=>editEvent(e.seriesId));buttons[2].addEventListener("click",()=>deleteEvent(e.seriesId));const star=document.createElement("button");star.type="button";star.className="mini-btn event-star-btn"+(e.specialReminder?" is-special":"");star.title=e.specialReminder?"取消特别提醒":"设为特别提醒";star.setAttribute("aria-label",star.title);star.textContent="★";star.addEventListener("click",()=>toggleSpecialReminder(e.seriesId,e.occurrenceDate));card.querySelector(".event-actions").insertBefore(star,buttons[1]);list.append(card);});}
   function repeatLabel(r){return ({daily:"每天重复",weekly:"每周重复",weekdays:"工作日重复",monthly:"每月重复"})[r]||"";}
   function renderProgress(){const evs=occurrenceEvents(state.selected),done=evs.filter(e=>e.done).length,total=evs.length,pct=total?Math.round(done/total*100):0;$("progressCount").textContent=done+" / "+total;$("progressPercent").textContent=pct+"%";$("progressBar").style.width=pct+"%";}
+  function toggleSpecialReminder(eventId,key){const e=state.events.find(x=>x.id===eventId);if(!e)return;snapshot();e.specialReminder=!e.specialReminder;save();render();toast(e.specialReminder?"已设为特别提醒":"已取消特别提醒");}
   function toggleDone(eventId,key){snapshot();const e=state.events.find(x=>x.id===eventId);if(!e)return;e.done=!e.done;save();render();toast(e.done?"已标记完成":"已恢复为未完成");}
   function syncCountdownOption(){const label=$("countdownOption");const enabled=!!$("eventEnd").value;if(label)label.hidden=!enabled;if(!enabled)$("eventCountdownEnabled").checked=false;}
-  function openEditor(e){$("eventForm").reset();$("eventId").value=e?.id||"";$("dialogTitle").textContent=e?"编辑日程":"新建日程";$("eventTitle").value=e?.title||"";$("eventDate").value=e?.date||state.selected;$("eventTime").value=e?.time||"";$("eventEnd").value=e?.endTime||"";$("eventReminder").value=String(e?.reminder||0);$("eventLocation").value=e?.location||"";$("eventNotes").value=e?.notes||"";$("eventRepeat").value=e?.repeat||"none";$("eventCountdownEnabled").checked=!!e?.countdownEnabled;$("eventSpecialReminder").checked=!!e?.specialReminder;syncCountdownOption();$("eventDialog").showModal();setTimeout(()=>$("eventTitle").focus(),30);}
+  function openEditor(e){$("eventForm").reset();$("eventId").value=e?.id||"";$("dialogTitle").textContent=e?"编辑日程":"新建日程";$("eventDate").disabled=state.occurrenceEditContext?.mode==="series";$("eventRepeat").disabled=state.occurrenceEditContext?.mode==="series";const scopeHint=$("editScopeHint");if(scopeHint){scopeHint.hidden=!state.occurrenceEditContext;scopeHint.textContent=state.occurrenceEditContext?.mode==="series"?"统一修改模式：会更新所有同名日程的标题、时间、地点、提醒和星标；各日程日期与重复规则保持不变。":state.occurrenceEditContext?.mode==="single"?"单日程修改模式：只影响选中的这一天；其他重复日期保持不变。":"";} $("eventTitle").value=e?.title||"";$("eventDate").value=state.occurrenceEditContext?.mode==="single"?state.occurrenceEditContext.occurrenceDate:e?.date||state.selected;$("eventTime").value=e?.time||"";$("eventEnd").value=e?.endTime||"";$("eventReminder").value=String(e?.reminder||0);$("eventLocation").value=e?.location||"";$("eventNotes").value=e?.notes||"";$("eventRepeat").value=e?.repeat||"none";$("eventCountdownEnabled").checked=!!e?.countdownEnabled;$("eventSpecialReminder").checked=!!e?.specialReminder;syncCountdownOption();$("eventDialog").showModal();setTimeout(()=>$("eventTitle").focus(),30);}
   $("eventEnd").addEventListener("input",syncCountdownOption);
-  function editEvent(eventId){const e=state.events.find(x=>x.id===eventId);if(!e)return;if(e.repeat!=="none"&&!confirm("这是重复日程。此版本编辑会修改整个重复系列（包括未来日期），而不是只修改当天。继续吗？"))return;openEditor(e);}
+  function editEvent(eventId){const e=state.events.find(x=>x.id===eventId);if(!e)return;if(e.repeat!=="none"&&!confirm("这是重复日程。直接编辑会修改整个重复系列；若只改某一天，请使用自然语言修改并选择“单日程修改”。继续统一修改吗？"))return;state.occurrenceEditContext=null;openEditor(e);}
   function deleteEvent(eventId){const e=state.events.find(x=>x.id===eventId);if(!e)return;const message=e.repeat!=="none"?"这会删除整个重复系列，而不是只删除当天。建议先导出备份。确定删除？":"确定删除“"+e.title+"”？";if(!confirm(message))return;snapshot();state.events=state.events.filter(x=>x.id!==eventId);save();render();toast("日程已删除。可用撤销恢复。");}
   $("eventForm").addEventListener("submit",ev=>{
     ev.preventDefault();
@@ -40,12 +41,30 @@
     if(time&&endTime&&endTime<=time){toast("结束时间必须晚于开始时间");return;}
     if(countdownEnabled&&!time){toast("自动倒计时需要开始时间");return;}
     const oldId=$("eventId").value,previous=oldId?state.events.find(e=>e.id===oldId):null;
+    const context=state.occurrenceEditContext;
+    if(previous&&context&&context.mode==="single"&&(previous.repeat||"none")!=="none"){
+      snapshot();
+      const key=context.occurrenceDate, oldOverrides=previous.overrides||{}, base=oldOverrides[key]||{};
+      const updated={title,time,endTime,reminder,countdownEnabled,specialReminder,location:$("eventLocation").value.trim(),notes:$("eventNotes").value.trim()};
+      state.reminderQueue=state.reminderQueue.filter(entry=>!entry.key.startsWith(previous.id+"@"+key+":"));for(const queuedKey of state.reminderSnoozed.keys())if(queuedKey.startsWith(previous.id+"@"+key+":"))state.reminderSnoozed.delete(queuedKey);
+      if(date!==key){
+        previous.excludedDates=Array.isArray(previous.excludedDates)?previous.excludedDates:[];
+        if(!previous.excludedDates.includes(key))previous.excludedDates.push(key);
+        state.events.push({...previous,...base,...updated,id:id(),date,repeat:"none",done:false,excludedDates:[],overrides:undefined});
+      }else previous.overrides={...oldOverrides,[key]:{...base,...updated}};
+      state.occurrenceEditContext=null;save();state.selected=date;const d=parseDate(date);state.cursor=new Date(d.getFullYear(),d.getMonth(),1);$("eventDialog").close();render();checkReminders();updateCountdowns();toast(date!==key?"已将这一次日程移到新日期":"已仅修改这一天的日程，其他重复日期不变");return;
+    }
+    if(context&&context.mode==="series"&&previous){/* retain the original series start date */}
+    state.occurrenceEditContext=null;
     const timingChanged=!!previous&&(["date","time","endTime","reminder"].some(k=>String(previous[k]||"")!==String(({date,time,endTime,reminder})[k]||""))||!!previous.countdownEnabled!==countdownEnabled);
     const reminderRevision=(previous?Number(previous.reminderRevision||0):0)+(timingChanged?1:0);
-    const item={id:oldId||id(),title,date,time,endTime,reminder,reminderRevision,countdownEnabled,specialReminder,location:$("eventLocation").value.trim(),notes:$("eventNotes").value.trim(),repeat:$("eventRepeat").value,done:previous?!!previous.done:false,excludedDates:Array.isArray(previous?.excludedDates)?previous.excludedDates:[]};
-    if(timingChanged&&oldId){state.reminderQueue=state.reminderQueue.filter(entry=>entry.event.id!==oldId);for(const key of state.reminderSnoozed.keys())if(key.startsWith(oldId+"@"))state.reminderSnoozed.delete(key);}
+    const item={id:oldId||id(),title,date:context&&context.mode==="series"&&previous?previous.date:date,time,endTime,reminder,reminderRevision,countdownEnabled,specialReminder,location:$("eventLocation").value.trim(),notes:$("eventNotes").value.trim(),repeat:$("eventRepeat").value,done:previous?!!previous.done:false,excludedDates:Array.isArray(previous?.excludedDates)?previous.excludedDates:[],overrides:context&&context.mode==="series"?{}:(previous?.overrides||{})};
+    if(timingChanged&&oldId){const affectedIds=context&&context.mode==="series"&&Array.isArray(context.matchingIds)&&context.matchingIds.length?context.matchingIds:[oldId];const affected=new Set(affectedIds);state.reminderQueue=state.reminderQueue.filter(entry=>!affected.has(entry.event.id));for(const key of state.reminderSnoozed.keys())if(affectedIds.some(id=>key.startsWith(id+"@")))state.reminderSnoozed.delete(key);}
     snapshot();
-    if(oldId)state.events=state.events.map(e=>e.id===oldId?item:e);else state.events.push(item);
+    if(context&&context.mode==="series"&&Array.isArray(context.matchingIds)&&context.matchingIds.length){
+      const ids=new Set(context.matchingIds);
+      state.events=state.events.map(existing=>ids.has(existing.id)?{...existing,title:item.title,time:item.time,endTime:item.endTime,reminder:item.reminder,reminderRevision:item.reminderRevision,countdownEnabled:item.countdownEnabled,specialReminder:item.specialReminder,location:item.location,notes:item.notes,overrides:{}}:existing);
+    }else if(oldId)state.events=state.events.map(e=>e.id===oldId?item:e);else state.events.push(item);
     save();state.selected=date;const parsed=parseDate(date);state.cursor=new Date(parsed.getFullYear(),parsed.getMonth(),1);$("eventDialog").close();render();checkReminders();updateCountdowns();toast(oldId?"日程已更新":"日程已保存到当前浏览器");
   });
   $("addBtn").addEventListener("click",()=>openEditor());$("addForDayBtn").addEventListener("click",()=>openEditor());$("closeDialog").addEventListener("click",()=>$("eventDialog").close());$("cancelDialog").addEventListener("click",()=>$("eventDialog").close());
@@ -88,8 +107,8 @@
         state.reminderQueue.push({key:key+":snooze:"+nowMs,event:item.event,kind:item.kind});
       }
     }
-    for(const e of state.events){
-      if(!e.time||e.done||!occurs(e,todayKey))continue;
+    for(const e of occurrenceEvents(todayKey)){
+      if(!e.time||e.done)continue;
       const start=parseDate(todayKey),parts=e.time.split(":").map(Number);
       if(parts.length<2||!Number.isFinite(parts[0])||!Number.isFinite(parts[1]))continue;
       start.setHours(parts[0],parts[1],0,0);
@@ -111,8 +130,8 @@
   function updateCountdowns(){
     const now=new Date(),todayKey=fmtDate(now),nowMs=now.getTime(),dock=$("countdownDock"),list=$("countdownItems");
     const running=[],currentKeys=new Set();
-    for(const e of state.events){
-      if(!e.countdownEnabled||!e.time||!e.endTime||e.done||!occurs(e,todayKey))continue;
+    for(const e of occurrenceEvents(todayKey)){
+      if(!e.countdownEnabled||!e.time||!e.endTime||e.done)continue;
       const start=parseDate(todayKey),end=parseDate(todayKey),sp=e.time.split(":").map(Number),ep=e.endTime.split(":").map(Number);
       start.setHours(sp[0],sp[1],0,0);end.setHours(ep[0],ep[1],0,0);
       if(nowMs>=start.getTime()&&nowMs<end.getTime()){
@@ -122,10 +141,9 @@
     }
     for(const key of state.countdownActive){
       if(currentKeys.has(key))continue;
-      const e=state.events.find(item=>key.startsWith(item.id+"@"));
+      const baseEvent=state.events.find(item=>key.startsWith(item.id+"@"));const day=key.slice(baseEvent?.id.length+1);const e=baseEvent?{...baseEvent,...(baseEvent.overrides&&baseEvent.overrides[day]||{})}:null;
       if(!e||e.done||!e.endTime||!e.time)continue;
-      const day=key.slice(e.id.length+1);
-      if(day!==todayKey)continue;
+      if(!e||day!==todayKey)continue;
       const end=parseDate(day),parts=e.endTime.split(":").map(Number);
       end.setHours(parts[0],parts[1],0,0);
       if(nowMs>=end.getTime())toast("限时任务时间已结束："+e.title);
@@ -211,7 +229,7 @@
     if(overlay.hidden)return;
     const now=new Date();
     overlay.querySelectorAll(".summary-event-row[data-live='true']").forEach(row=>{
-      const event=state.events.find(e=>e.id===row.dataset.eventId);if(!event)return;
+      const baseEvent=state.events.find(e=>e.id===row.dataset.eventId);if(!baseEvent)return;const event={...baseEvent,...(baseEvent.overrides&&baseEvent.overrides[row.dataset.occurrenceDate]||{})};
       const info=getSummaryStatus(event,row.dataset.occurrenceDate,now);
       const status=row.querySelector("[data-summary-status]"),detail=row.querySelector("[data-summaryDetail], [data-summary-detail]");
       status.className="summary-status status-badge-"+info.code;status.textContent=info.label;
@@ -223,7 +241,23 @@
   function renderSpecialSummary(){
     const list=$("specialSummaryList");list.innerHTML="";
     const now=new Date(),todayKey=fmtDate(now);
-    const items=state.events.filter(e=>e.specialReminder).map(event=>({event,key:summaryOccurrenceDate(event,todayKey)}));
+    const items=[];
+    for(const event of state.events){
+      if(event.done)continue;
+      if((event.repeat||"none")==="none"){
+        const key=event.date,override=event.overrides&&event.overrides[key];
+        const isSpecial=override&&Object.prototype.hasOwnProperty.call(override,"specialReminder")?override.specialReminder:!!event.specialReminder;
+        if(isSpecial)items.push({event:{...event,...(override||{})},key});
+        continue;
+      }
+      const base=event.date>todayKey?event.date:todayKey,d=parseDate(base);
+      for(let n=0;n<=370;n++){
+        const candidate=new Date(d);candidate.setDate(d.getDate()+n);const key=fmtDate(candidate);
+        if(!occurs(event,key))continue;
+        const override=event.overrides&&event.overrides[key],isSpecial=override&&Object.prototype.hasOwnProperty.call(override,"specialReminder")?override.specialReminder:!!event.specialReminder;
+        if(isSpecial){items.push({event:{...event,...(override||{})},key});break;}
+      }
+    }
     items.sort((a,b)=>a.key.localeCompare(b.key)||(a.event.time||"").localeCompare(b.event.time||""));
     if(!items.length){const empty=document.createElement("div");empty.className="summary-empty";empty.textContent="还没有设置特别提醒。可以在任一日程的编辑窗口中勾选“设为特别提醒”。";list.append(empty);return;}
     items.forEach(({event,key})=>list.append(buildSummaryRow(event,key,true)));
@@ -321,13 +355,14 @@
     }
     return {time:format(tokens[0]),endTime};
   }
+  function getTargetDateRange(raw){const now=new Date(),today=new Date(now.getFullYear(),now.getMonth(),now.getDate(),12),m=raw.match(/(下周|下星期|这周|本周)([一二三四五六日天1-7])?/);if(!m)return null;const monday=new Date(today);monday.setDate(today.getDate()-((today.getDay()+6)%7)+(/下周|下星期/.test(m[1])?7:0));if(m[2]){const map={一:0,二:1,三:2,四:3,五:4,六:5,日:6,天:6,"1":0,"2":1,"3":2,"4":3,"5":4,"6":5,"7":6};const d=new Date(monday);d.setDate(monday.getDate()+map[m[2]]);return {start:fmtDate(d),end:fmtDate(d),label:fmtDate(d)};}const end=new Date(monday);end.setDate(monday.getDate()+6);return {start:fmtDate(monday),end:fmtDate(end),label:fmtDate(monday)+" 至 "+fmtDate(end)};}
   function parseNatural(text) {
     const raw=text.trim(); if(!raw)return null;
-    const editMarker=raw.match(/(?:修改为|修改成|修改到|调整为|调整成|调整到|更改为|更改成|更改到|设置为|设置成|设定为|设定成|改为|改成|改到|换成)/);
-    const isEdit=/(修改|改成|改为|调整|更改|设置|设定|把.+换成|把.+改到|把.+移到|把.+日期改)/.test(raw);
+    const editMarker=raw.match(/(?:设为特别提醒|设置为特别提醒|标记为特别提醒|加上特别提醒|修改为|修改成|修改到|调整为|调整成|调整到|更改为|更改成|更改到|设置为|设置成|设定为|设定成|改为|改成|改到|换成)/);
+    const isEdit=/(修改|改成|改为|调整|更改|设置|设定|设为特别提醒|标星|特别提醒|把.+换成|把.+改到|把.+移到|把.+日期改)/.test(raw);
     const sourceText=isEdit&&editMarker?raw.slice(0,editMarker.index):raw;
-    const target=parseTargetDate(sourceText);
-    const timeText=isEdit&&editMarker?raw.slice(editMarker.index+editMarker[0].length):raw;
+    const range=isEdit?getTargetDateRange(sourceText):null; const target=range?{date:range.start,matched:true}:parseTargetDate(sourceText);
+    const timeText=isEdit&&editMarker&&!/特别提醒/.test(editMarker[0])?raw.slice(editMarker.index+editMarker[0].length):raw;
     const timeParts=parseTimeRange(timeText);
     const time=timeParts.time, endTime=timeParts.endTime;
     const locMatch=raw.match(/(?:地点|位置)\s*(?:(?:设置|设定|改|调整|更改)\s*(?:为|成|到)|(?:是|为|在|设为|：|:))?\s*([^，,。；;]+)/) || raw.match(/在\s*([^，,。；;]+?)\s*(?=开|上|参加|进行|学习|吃饭|运动|健身|看医生|复诊|提前|$)/);
@@ -335,7 +370,7 @@
     if(location && /^(明天|今天|后天|大后天|下周|本周|这周|周[一二三四五六日天]|星期[一二三四五六日天]|上午|下午|晚上|早上|中午|傍晚)/.test(location)) location="";
     const rm=raw.match(/提前\s*(\d+)\s*分钟?提醒/);
     const deleteIntent=/(删除|删掉|取消|移除|不要了|不再安排|去掉)/.test(raw);
-    const editIntent=/(修改|改成|改为|调整|更改|设置|设定|把.+换成|把.+改到|把.+移到|把.+日期改)/.test(raw);
+    const editIntent=/(修改|改成|改为|调整|更改|设置|设定|设为特别提醒|标星|特别提醒|把.+换成|把.+改到|把.+移到|把.+日期改)/.test(raw);
     const repeat=/每周|每个星期/.test(raw)?"weekly":/每天|每日/.test(raw)?"daily":/每个工作日|工作日/.test(raw)?"weekdays":"none";
     let title=raw
       .replace(/请帮我|请|帮我|安排一下|安排|新增|添加|创建|新建|删除|删掉|取消|移除|不要了|不再安排|去掉|修改|调整|更改|把|下周|下星期|这周|本周|今天|今日|明天|明日|后天|大后天|20\d{2}[年./-]\d{1,2}[月./-]\d{1,2}日?|\d{1,2}月\d{1,2}日?|(?:周|星期)[一二三四五六日天]/g," ")
@@ -344,7 +379,7 @@
       .replace(/(?:地点|位置)\s*(?:(?:设置|设定|改|调整|更改)\s*(?:为|成|到)|(?:是|为|在|设为|：|:))?\s*[^，,。；;]+/g," ").replace(/在\s*[^，,。；;]+?\s*(?=开|上|参加|进行|学习|吃饭|运动|健身|看医生|复诊|提前|$)/g," ").replace(/(?:从|到|至|开始|结束(?:时间)?|截止(?:时间)?)/g," ")
       .replace(/[，,。；;]/g," ").replace(/\s+/g," ").trim();
     title=title.replace(/^(的|一下|下|上|开|做|把|参加|进行)\s*/,"").replace(/(这个日程|这条日程|这个安排|的日程|的课)$/,"").trim();
-    return {action:deleteIntent?"delete":editIntent?"edit":"create",title,date:target.date,time,endTime,reminder:rm?Math.min(1440,+rm[1]):0,location,repeat,countdownEnabled:!!endTime&&/(自动倒计时|开始时倒计时|开始自动倒计时)/.test(raw),raw};
+    return {action:deleteIntent?"delete":editIntent?"edit":"create",title,date:target.date,dateRange:range||{start:target.date,end:target.date,label:target.date},time,endTime,reminder:rm?Math.min(1440,+rm[1]):0,location,specialReminder:/(特别提醒|重点提醒|星标|标星)/.test(raw)&&!/(取消|关闭|不要).{0,4}(特别提醒|重点提醒|星标)/.test(raw),repeat,countdownEnabled:!!endTime&&/(自动倒计时|开始时倒计时|开始自动倒计时)/.test(raw),raw};
   }
   function showDraft(html) { const area=$("draftArea"); area.hidden=false; area.innerHTML=html; }
   function safeDeleteOccurrence(eventId,key) {
@@ -418,7 +453,7 @@
     }
     if(parsed.action==="edit") {
       const compact = value => String(value || "").toLocaleLowerCase().replace(/[\s的这条个]/g, "");
-      const editMarker = raw.match(/(?:修改为|修改成|修改到|调整为|调整成|调整到|更改为|更改成|更改到|设置为|设置成|设定为|设定成|改为|改成|改到|换成)/);
+      const editMarker = raw.match(/(?:设为特别提醒|设置为特别提醒|标记为特别提醒|加上特别提醒|修改为|修改成|修改到|调整为|调整成|调整到|更改为|更改成|更改到|设置为|设置成|设定为|设定成|改为|改成|改到|换成)/);
       const destinationText = editMarker ? raw.slice(editMarker.index + editMarker[0].length) : "";
       const destinationParsed = destinationText ? parseTargetDate(destinationText) : null;
       let destinationDate = destinationParsed && destinationParsed.matched ? destinationParsed.date : "";
@@ -441,12 +476,12 @@
       const sourcePrefix = editMarker ? raw.slice(0,editMarker.index) : raw;
       const targetKeyword = sourcePrefix
         .replace(/请帮我|请|帮我|将|把|安排一下|安排|修改|调整|更改|设置|设定/g," ")
-        .replace(/大后天|后天|明天|明日|今天|今日|下周|下星期|这周|本周|周[一二三四五六日天1-7]|星期[一二三四五六日天1-7]|20\d{2}[年./-]\d{1,2}[月./-]\d{1,2}日?|\d{1,2}月\d{1,2}日?/g," ")
+        .replace(/大后天|后天|明天|明日|今天|今日|(?:下周|下星期|这周|本周)[一二三四五六日天1-7]?|(?:周|星期)[一二三四五六日天1-7]|20\\d{2}[年./-]\\d{1,2}[月./-]\\d{1,2}日?|\\d{1,2}月\\d{1,2}日?/g," ")
         .replace(/(上午|早上|中午|下午|晚上|傍晚)?\s*\d{1,2}(?:(?:[:：]\d{1,2})|(?:[点时](?:\d{1,2}分?|半)?))?/g," ")
         .replace(/提前\s*\d+\s*分钟?提醒/g," ")
-        .replace(/(?:时间|日期|地点|位置|标题|名称|提醒)$/g,"")
+        .replace(/(?:时间|日期|地点|位置|标题|名称|提醒|特别提醒|重点提醒|星标|标星|设为)$/g,"")
         .replace(/[的这条个：:，,。；;\s]/g,"").trim();
-      const eventCandidates = occurrenceEvents(parsed.date);
+      const searchRange=parsed.dateRange||{start:parsed.date,end:parsed.date,label:parsed.date};const candidateDates=[];for(let d=parseDate(searchRange.start),end=parseDate(searchRange.end);d<=end;d.setDate(d.getDate()+1))candidateDates.push(fmtDate(d));const eventCandidates=[...new Map(candidateDates.flatMap(key=>occurrenceEvents(key).map(e=>[e.seriesId+"@"+key,e]))).values()];
       const findMatches = keyword => {
         const terms = String(keyword||"").toLocaleLowerCase().split(/\s+/).map(term=>term.replace(/[的这条个，,。；;、]/g,"")).filter(Boolean);
         if(!terms.length)return [];
@@ -455,16 +490,18 @@
           return terms.every(term=>title.includes(term));
         });
       };
-      const applyEdit = eventId => {
+      const applyEdit = (eventId,occurrenceDate,mode) => {
         const e=state.events.find(x=>x.id===eventId);if(!e)return;
-        editEvent(e.id);
+        state.occurrenceEditContext={occurrenceDate,mode,matchingIds:mode==="series"?state.events.filter(x=>compact(x.title)===compact(e.title)).map(x=>x.id):[]};
+        openEditor(mode==="single"?{...e,...(e.overrides&&e.overrides[occurrenceDate]||{}),date:occurrenceDate}:e);
         if(!$("eventDialog").open)return;
         if(parsed.time)$("eventTime").value=parsed.time;
         if(parsed.endTime){$("eventEnd").value=parsed.endTime;syncCountdownOption();}
         if(destinationDate)$("eventDate").value=destinationDate;
         if(locationChange)$("eventLocation").value=locationChange[1].trim().replace(/^(为|成|到)\s*/,"");
         if(renameMatch)$("eventTitle").value=renameMatch[1].trim();
-        toast("已填入修改建议；请检查后点击“保存日程”");
+        if(parsed.specialReminder)$("eventSpecialReminder").checked=true;
+        toast(mode==="single"?"已打开单日程编辑；只影响选中的这一天":"已打开系列编辑；保存后会统一修改整个重复系列");
       };
       const openNewDraft = keyword => {
         const draftTitle=(keyword||targetKeyword||parsed.title||"").trim()||"新待办（请填写标题）";
@@ -473,18 +510,18 @@
         $("eventId").value="";$("eventTitle").value=draftTitle;$("eventDate").value=draftDate;
         $("eventTime").value=parsed.time||"";$("eventEnd").value=parsed.endTime||"";
         $("eventCountdownEnabled").checked=!!parsed.countdownEnabled;syncCountdownOption();
-        $("eventReminder").value=String(parsed.reminder);$("eventLocation").value=parsed.location;$("eventRepeat").value=parsed.repeat;
+        $("eventReminder").value=String(parsed.reminder);$("eventLocation").value=parsed.location;$("eventRepeat").value=parsed.repeat;$("eventSpecialReminder").checked=!!parsed.specialReminder;
         toast("已打开新待办草稿；请核对标题和日期后再保存");
       };
       const renderEditSearch = keyword => {
         const candidates=findMatches(keyword);
         const resultsHtml=candidates.length
-          ? candidates.map(e=>'<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.date)+' · '+esc(e.time||"无指定时间")+(e.endTime?" – "+esc(e.endTime):"")+' · '+esc(e.repeat!=="none"?"重复系列":"单次日程")+(e.location?" · "+esc(e.location):"")+'</p><button type="button" class="secondary-btn" data-edit-id="'+esc(e.id)+'">选择并修改</button></div>').join("")
-          : '<p class="notice">在 '+esc(parsed.date)+' 没有找到标题包含“'+esc(keyword||"（空关键词）")+'”的日程。你可以换个更短的关键词，或选择把这句话作为新待办草稿。</p>';
-        showDraft('<h4>按日期和标题关键词查找</h4><p>先查找原日程日期：'+esc(parsed.date)+'。标题支持部分匹配，例如“完成 A”可以匹配“完成 A 并设计 B”。</p><label class="field-label" for="editKeywordInput">项目标题关键词</label><div class="search-input-row"><input id="editKeywordInput" type="search" value="'+esc(keyword)+'" placeholder="输入项目标题中的几个字"><button type="button" class="secondary-btn" id="searchEditKeywordBtn">搜索</button></div>'+resultsHtml+(candidates.length?"":'<div class="draft-buttons"><button type="button" class="secondary-btn" id="createNewFromEditBtn">仍未找到？作为新待办草稿</button></div>')+'');
+          ? candidates.map(e=>{const sameNameCount=state.events.filter(x=>compact(x.title)===compact(e.title)).length;return '<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.occurrenceDate||e.date)+' · '+esc(e.time||"无指定时间")+(e.endTime?" – "+esc(e.endTime):"")+' · '+esc(e.repeat!=="none"?"重复系列":"单次日程")+(e.location?" · "+esc(e.location):"")+'</p><button type="button" class="secondary-btn" data-edit-id="'+esc(e.id)+'" data-edit-date="'+esc(e.occurrenceDate||e.date)+'" data-edit-mode="single">单日程修改</button>'+(e.repeat!=="none"||sameNameCount>1?'<button type="button" class="secondary-btn" data-edit-id="'+esc(e.id)+'" data-edit-date="'+esc(e.occurrenceDate||e.date)+'" data-edit-mode="series">统一修改所有同名日程</button>':"")+'</div>';}).join("")
+          : '<p class="notice">在 '+esc(searchRange.label||parsed.date)+' 没有找到标题包含“'+esc(keyword||"（空关键词）")+'”的日程。你可以换个更短的关键词，或选择把这句话作为新待办草稿。</p>';
+        showDraft('<h4>按日期范围和标题关键词查找</h4><p>查找范围：'+esc(searchRange.label||parsed.date)+'。标题支持部分匹配，例如“英语”可以匹配更长的课程名称。</p><label class="field-label" for="editKeywordInput">项目标题关键词</label><div class="search-input-row"><input id="editKeywordInput" type="search" value="'+esc(keyword)+'" placeholder="输入项目标题中的几个字"><button type="button" class="secondary-btn" id="searchEditKeywordBtn">搜索</button></div>'+resultsHtml+(candidates.length?"":'<div class="draft-buttons"><button type="button" class="secondary-btn" id="createNewFromEditBtn">仍未找到？作为新待办草稿</button></div>')+'');
         $("searchEditKeywordBtn").addEventListener("click",()=>renderEditSearch($("editKeywordInput").value.trim()));
         $("editKeywordInput").addEventListener("keydown",ev=>{if(ev.key==="Enter"){ev.preventDefault();renderEditSearch($("editKeywordInput").value.trim());}});
-        $("draftArea").querySelectorAll("[data-edit-id]").forEach(btn=>btn.addEventListener("click",()=>applyEdit(btn.dataset.editId)));
+        $("draftArea").querySelectorAll("[data-edit-id]").forEach(btn=>btn.addEventListener("click",()=>applyEdit(btn.dataset.editId,btn.dataset.editDate,btn.dataset.editMode||"single")));
         const createButton=$("createNewFromEditBtn");if(createButton)createButton.addEventListener("click",()=>openNewDraft($("editKeywordInput").value.trim()));
       };
       renderEditSearch(targetKeyword);
@@ -492,7 +529,7 @@
     }
     showDraft('<h4>待确认草稿</h4><p><strong>事项：</strong>'+esc(parsed.title||"请补充事项名称")+'</p><p><strong>日期：</strong>'+esc(parsed.date)+'</p><p><strong>开始时间：</strong>'+esc(parsed.time||"未识别，请保存前填写")+'</p><p><strong>结束时间：</strong>'+esc(parsed.endTime||"未指定（普通待办）")+'</p><p><strong>地点：</strong>'+esc(parsed.location||"未指定")+'</p><p><strong>重复：</strong>'+esc(repeatLabel(parsed.repeat)||"不重复")+'</p><p><strong>提醒：</strong>'+esc(parsed.reminder?parsed.reminder+" 分钟前":"关闭")+'</p><p class="notice">请检查标题、日期、时间、地点与重复规则后再保存。</p><div class="draft-buttons"><button class="secondary-btn" id="discardDraft">放弃</button><button class="primary-btn" id="useDraft">检查并编辑</button></div>');
     $("discardDraft").addEventListener("click",()=>{$("draftArea").hidden=true;$("draftArea").innerHTML="";});
-    $("useDraft").addEventListener("click",()=>{openEditor({...parsed,id:""});$("eventId").value="";$("eventTitle").value=parsed.title;$("eventDate").value=parsed.date;$("eventTime").value=parsed.time;$("eventEnd").value=parsed.endTime||"";$("eventCountdownEnabled").checked=!!parsed.countdownEnabled;syncCountdownOption();$("eventReminder").value=String(parsed.reminder);$("eventLocation").value=parsed.location;$("eventRepeat").value=parsed.repeat;});
+    $("useDraft").addEventListener("click",()=>{openEditor({...parsed,id:""});$("eventId").value="";$("eventTitle").value=parsed.title;$("eventDate").value=parsed.date;$("eventTime").value=parsed.time;$("eventEnd").value=parsed.endTime||"";$("eventCountdownEnabled").checked=!!parsed.countdownEnabled;syncCountdownOption();$("eventReminder").value=String(parsed.reminder);$("eventLocation").value=parsed.location;$("eventRepeat").value=parsed.repeat;$("eventSpecialReminder").checked=!!parsed.specialReminder;});
   });
   if ("serviceWorker" in navigator && location.protocol === "https:") {
     window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
