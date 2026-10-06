@@ -3,7 +3,7 @@
   const $ = (id) => document.getElementById(id);
   const STORAGE_KEY = "nexus-planner-v1";
   function fmtDate(d) { return [d.getFullYear(), String(d.getMonth()+1).padStart(2,"0"), String(d.getDate()).padStart(2,"0")].join("-"); }
-  const state = { events: [], selected: dateKey(new Date()), cursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), view: "month", undo: null, reminderSeen: new Set(), reminderQueue: [], activeReminder: null, reminderSnoozed: new Map(), countdownActive: new Set(), startupSummaryQueue: [], startupSummaryActive: null, occurrenceEditContext: null, toastTimer: null };
+  const state = { events: [], selected: dateKey(new Date()), cursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), view: "month", undo: null, reminderSeen: new Set(), reminderQueue: [], activeReminder: null, reminderSnoozed: new Map(), countdownActive: new Set(), countdownMinimized: false, startupSummaryQueue: [], startupSummaryActive: null, occurrenceEditContext: null, toastTimer: null };
   function dateKey(d){return fmtDate(d);}
   function parseDate(s){const [y,m,d]=String(s).split("-").map(Number);return new Date(y,m-1,d,12);}
   function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
@@ -93,8 +93,8 @@
   }
   function render(){renderCalendar();renderDay();renderProgress();renderStudyDesk();checkReminders();updateCountdowns();updateSpecialSummaryLive();}
   function renderCalendar(){const y=state.cursor.getFullYear(),m=state.cursor.getMonth();$("periodTitle").textContent=state.view==="day"?state.selected:state.cursor.toLocaleDateString("zh-CN",{year:"numeric",month:"long"});$("calendarHeading").textContent=state.view==="day"?"单日安排":"日历概览";$("calendarGrid").classList.toggle("day-view",state.view==="day");document.querySelectorAll(".view-btn").forEach(b=>b.classList.toggle("active",b.dataset.view===state.view));const grid=$("calendarGrid");grid.innerHTML="";if(state.view==="day"){const selected=parseDate(state.selected);const start=new Date(selected);start.setDate(selected.getDate()-selected.getDay());for(let i=0;i<7;i++){const d=new Date(start);d.setDate(start.getDate()+i);grid.append(makeDayCell(fmtDate(d),d.getDate(),d.getMonth()!==selected.getMonth()));}return;}const first=new Date(y,m,1),offset=first.getDay(),days=new Date(y,m+1,0).getDate(),prevDays=new Date(y,m,0).getDate();for(let i=0;i<42;i++){let d,key,outside=false;if(i<offset){d=prevDays-offset+i+1;key=fmtDate(new Date(y,m-1,d));outside=true;}else if(i>=offset+days){d=i-offset-days+1;key=fmtDate(new Date(y,m+1,d));outside=true;}else{d=i-offset+1;key=fmtDate(new Date(y,m,d));}grid.append(makeDayCell(key,d,outside));}}
-  function makeDayCell(key,day,outside){const btn=document.createElement("button");btn.type="button";btn.className="calendar-day"+(outside?" outside":"")+(key===state.selected?" selected":"")+(key===dateKey(new Date())?" today":"");btn.setAttribute("aria-label",key+" 日程");const number=document.createElement("span");number.className="day-number";number.textContent=day;btn.append(number);const evs=occurrenceEvents(key);if(evs.length){const wrap=document.createElement("span");wrap.className="day-events";evs.slice(0,2).forEach(e=>{const chip=document.createElement("span");chip.className="event-chip"+(e.done?" done":(!e.time?" todo":""));chip.textContent=(e.specialReminder?"★ ":"")+(e.time?e.time+" ":"")+e.title;if(e.specialReminder)chip.classList.add("special-event-chip");wrap.append(chip);});btn.append(wrap);if(evs.length>2){const more=document.createElement("span");more.className="more-chip";more.textContent="+"+(evs.length-2)+" 项";btn.append(more);}}btn.addEventListener("click",()=>{state.selected=key;state.cursor=new Date(parseDate(key).getFullYear(),parseDate(key).getMonth(),1);render();});return btn;}
-  function renderDay(){const d=parseDate(state.selected),evs=occurrenceEvents(state.selected);$("selectedHeading").textContent=d.toLocaleDateString("zh-CN",{month:"long",day:"numeric",weekday:"long"});$("selectedBadge").textContent=state.selected.slice(5);const list=$("eventList");list.innerHTML="";if(!evs.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">⌁</div>这一天还没有安排。<br>给自己留一点可能性。</div>';return;}evs.forEach(e=>{const card=document.createElement("article");card.className="event-card"+(e.done?" done":"")+(e.time?"":" todo");const time=e.longTask?("长期任务 · "+(e.occurrenceDate===e.date?"开始":e.occurrenceDate===(e.endDate||e.date)?"结束":"进行中")+" · "+(e.time||"未定时")):(e.time?(e.endTime?e.time+" – "+e.endTime:e.time+" · 待办"):(e.repeat!=="none"?"重复日程":"待办事项"));card.innerHTML='<span class="event-stripe"></span><div class="event-main"><div class="event-time">'+esc(time)+(e.repeat!=="none"?' · '+repeatLabel(e.repeat):"")+'</div><div class="event-title">'+(e.specialReminder?'<span class="special-star" aria-label="特别提醒">★</span> ':"")+esc(e.title)+'</div>'+(e.location?'<div class="event-meta">⌖ '+esc(e.location)+'</div>':"")+(e.notes?'<div class="event-meta">'+esc(e.notes)+'</div>':"")+'</div><div class="event-actions"><button class="check-btn '+(e.done?"checked":"")+'" title="'+(e.done?"标记未完成":"标记完成")+'" aria-label="'+(e.done?"标记未完成":"标记完成")+'">'+(e.done?"✓":"○")+'</button><button class="mini-btn" title="编辑" aria-label="编辑">✎</button><button class="mini-btn" title="删除" aria-label="删除">×</button></div>';const buttons=card.querySelectorAll("button");buttons[0].addEventListener("click",()=>toggleDone(e.seriesId,e.occurrenceDate));buttons[1].addEventListener("click",()=>editEvent(e.seriesId));buttons[2].addEventListener("click",()=>deleteEvent(e.seriesId));const star=document.createElement("button");star.type="button";star.className="mini-btn event-star-btn"+(e.specialReminder?" is-special":"");star.title=e.specialReminder?"取消特别提醒":"设为特别提醒";star.setAttribute("aria-label",star.title);star.textContent="★";star.addEventListener("click",()=>toggleSpecialReminder(e.seriesId,e.occurrenceDate));card.querySelector(".event-actions").insertBefore(star,buttons[1]);list.append(card);});}
+  function makeDayCell(key,day,outside){const btn=document.createElement("button");btn.type="button";btn.className="calendar-day"+(outside?" outside":"")+(key===state.selected?" selected":"")+(key===dateKey(new Date())?" today":"");btn.setAttribute("aria-label",key+" 日程");const number=document.createElement("span");number.className="day-number";number.textContent=day;btn.append(number);const evs=occurrenceEvents(key);if(evs.length){const wrap=document.createElement("span");wrap.className="day-events";evs.slice(0,2).forEach(e=>{const chip=document.createElement("span");const info=getSummaryStatus(e,key,new Date());chip.className="event-chip"+(e.done?" done":(!e.time?" todo":""))+(!e.done&&info.code!=="upcoming"?" status-"+info.code:"");chip.textContent=(e.specialReminder?"★ ":"")+(e.time?e.time+" ":"")+(info.code==="complete"?"✓ ":info.code==="ongoing"?"进行中 · ":info.code==="missed"?"已错过 · ":"")+e.title;if(e.specialReminder)chip.classList.add("special-event-chip");wrap.append(chip);});btn.append(wrap);if(evs.length>2){const more=document.createElement("span");more.className="more-chip";more.textContent="+"+(evs.length-2)+" 项";btn.append(more);}}btn.addEventListener("click",()=>{state.selected=key;state.cursor=new Date(parseDate(key).getFullYear(),parseDate(key).getMonth(),1);render();});return btn;}
+  function renderDay(){const d=parseDate(state.selected),evs=occurrenceEvents(state.selected);$("selectedHeading").textContent=d.toLocaleDateString("zh-CN",{month:"long",day:"numeric",weekday:"long"});$("selectedBadge").textContent=state.selected.slice(5);const list=$("eventList");list.innerHTML="";if(!evs.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">⌁</div>这一天还没有安排。<br>给自己留一点可能性。</div>';return;}evs.forEach(e=>{const card=document.createElement("article");card.className="event-card"+(e.done?" done":"")+(e.time?"":" todo");const time=e.longTask?("长期任务 · "+(e.occurrenceDate===e.date?"开始":e.occurrenceDate===(e.endDate||e.date)?"结束":"进行中")+" · "+(e.time||"未定时")):(e.time?(e.endTime?e.time+" – "+e.endTime:e.time+" · 待办"):(e.repeat!=="none"?"重复日程":"待办事项"));card.innerHTML='<span class="event-stripe"></span><div class="event-main"><div class="event-time">'+esc(time)+(e.repeat!=="none"?' · '+repeatLabel(e.repeat):"")+'</div><div class="event-title">'+(e.specialReminder?'<span class="special-star" aria-label="特别提醒">★</span> ':"")+esc(e.title)+(function(){const st=getSummaryStatus(e,e.occurrenceDate,new Date());return st.code!=="upcoming"?' <span class="event-status-badge event-status-'+st.code+'">'+st.label+'</span>':"";})()+'</div>'+(e.location?'<div class="event-meta">⌖ '+esc(e.location)+'</div>':"")+(e.notes?'<div class="event-meta">'+esc(e.notes)+'</div>':"")+'</div><div class="event-actions"><button class="check-btn '+(e.done?"checked":"")+'" title="'+(e.done?"标记未完成":"标记完成")+'" aria-label="'+(e.done?"标记未完成":"标记完成")+'">'+(e.done?"✓":"○")+'</button><button class="mini-btn" title="编辑" aria-label="编辑">✎</button><button class="mini-btn" title="删除" aria-label="删除">×</button></div>';const buttons=card.querySelectorAll("button");buttons[0].addEventListener("click",()=>toggleDone(e.seriesId,e.occurrenceDate));buttons[1].addEventListener("click",()=>editEvent(e.seriesId));buttons[2].addEventListener("click",()=>deleteEvent(e.seriesId));const star=document.createElement("button");star.type="button";star.className="mini-btn event-star-btn"+(e.specialReminder?" is-special":"");star.title=e.specialReminder?"取消特别提醒":"设为特别提醒";star.setAttribute("aria-label",star.title);star.textContent="★";star.addEventListener("click",()=>toggleSpecialReminder(e.seriesId,e.occurrenceDate));card.querySelector(".event-actions").insertBefore(star,buttons[1]);list.append(card);});}
   function repeatLabel(r){return ({daily:"每天重复",weekly:"每周重复",weekdays:"工作日重复",monthly:"每月重复"})[r]||"";}
   function renderProgress(){const evs=occurrenceEvents(state.selected),done=evs.filter(e=>e.done).length,total=evs.length,pct=total?Math.round(done/total*100):0;$("progressCount").textContent=done+" / "+total;$("progressPercent").textContent=pct+"%";$("progressBar").style.width=pct+"%";}
   function toggleSpecialReminder(eventId,key){const e=state.events.find(x=>x.id===eventId);if(!e)return;snapshot();e.specialReminder=!e.specialReminder;save();render();toast(e.specialReminder?"已设为特别提醒":"已取消特别提醒");}
@@ -246,41 +246,55 @@
     }
     showNextReminder();
   }
+  function completeCountdown(eventId){
+    const e=state.events.find(item=>item.id===eventId);if(!e)return;
+    snapshot();e.done=true;save();state.countdownMinimized=false;render();
+    toast("已确认完成："+e.title);
+  }
+  function minimizeCountdown(){state.countdownMinimized=true;updateCountdowns();}
+  function restoreCountdown(){state.countdownMinimized=false;updateCountdowns();}
+  function setupCountdownBubbleDrag(){
+    const bubble=$("countdownBubble");let dragging=false,moved=false,startX=0,startY=0,left=0,top=0;
+    bubble.addEventListener("pointerdown",ev=>{dragging=true;moved=false;startX=ev.clientX;startY=ev.clientY;const r=bubble.getBoundingClientRect();left=r.left;top=r.top;bubble.setPointerCapture(ev.pointerId);});
+    bubble.addEventListener("pointermove",ev=>{if(!dragging)return;const dx=ev.clientX-startX,dy=ev.clientY-startY;if(Math.abs(dx)>4||Math.abs(dy)>4)moved=true;if(moved){bubble.style.left=Math.max(0,Math.min(window.innerWidth-bubble.offsetWidth,left+dx))+"px";bubble.style.top=Math.max(0,Math.min(window.innerHeight-bubble.offsetHeight,top+dy))+"px";bubble.style.right="auto";bubble.style.bottom="auto";}});
+    bubble.addEventListener("pointerup",()=>{dragging=false;if(!moved)restoreCountdown();});
+    bubble.addEventListener("pointercancel",()=>{dragging=false;});
+    $("minimizeCountdownBtn").addEventListener("click",minimizeCountdown);
+  }
   function updateCountdowns(){
-    const now=new Date(),todayKey=fmtDate(now),nowMs=now.getTime(),dock=$("countdownDock"),list=$("countdownItems");
+    const now=new Date(),todayKey=fmtDate(now),nowMs=now.getTime(),dock=$("countdownDock"),list=$("countdownItems"),bubble=$("countdownBubble");
     const running=[],currentKeys=new Set();
     for(const e of occurrenceEvents(todayKey)){
       if(!e.countdownEnabled||!e.time||!e.endTime||e.done)continue;
       const start=parseDate(e.longTask?e.date:todayKey),end=parseDate(e.longTask?(e.endDate||e.date):todayKey),sp=e.time.split(":").map(Number),ep=e.endTime.split(":").map(Number);
       start.setHours(sp[0],sp[1],0,0);end.setHours(ep[0],ep[1],0,0);
-      if(nowMs>=start.getTime()&&nowMs<end.getTime()){
-        running.push({event:e,endMs:end.getTime()});
-        currentKeys.add(e.id+"@"+todayKey);
-      }
+      if(nowMs>=start.getTime()&&nowMs<end.getTime()){running.push({event:e,endMs:end.getTime()});currentKeys.add(e.id+"@"+todayKey);}
     }
     for(const key of state.countdownActive){
       if(currentKeys.has(key))continue;
       const baseEvent=state.events.find(item=>key.startsWith(item.id+"@"));const day=key.slice(baseEvent?.id.length+1);const e=baseEvent?{...baseEvent,...(baseEvent.overrides&&baseEvent.overrides[day]||{})}:null;
-      if(!e||e.done||!e.endTime||!e.time)continue;
-      if(!e||day!==todayKey)continue;
-      const end=parseDate(day),parts=e.endTime.split(":").map(Number);
-      end.setHours(parts[0],parts[1],0,0);
+      if(!e||e.done||!e.endTime||!e.time||day!==todayKey)continue;
+      const end=parseDate(e.longTask?(e.endDate||day):day),parts=e.endTime.split(":").map(Number);end.setHours(parts[0],parts[1],0,0);
       if(nowMs>=end.getTime())toast("限时任务时间已结束："+e.title);
     }
     list.innerHTML="";
     running.forEach(({event,endMs})=>{
       const item=document.createElement("div");item.className="countdown-item";
       const title=document.createElement("strong");title.className="countdown-title";title.textContent=event.title;
-      const times=document.createElement("div");times.className="countdown-meta";times.textContent=event.time+" – "+event.endTime+(event.location?" · "+event.location:"");
-      const seconds=Math.max(0,Math.ceil((endMs-nowMs)/1000));
-      const remain=document.createElement("div");remain.className="countdown-clock";
+      const times=document.createElement("div");times.className="countdown-meta";times.textContent=(event.longTask?event.date+" "+event.time+" – "+(event.endDate||event.date)+" "+event.endTime:event.time+" – "+event.endTime)+(event.location?" · "+event.location:"");
+      const seconds=Math.max(0,Math.ceil((endMs-nowMs)/1000)),remain=document.createElement("div");remain.className="countdown-clock";
       remain.textContent=String(Math.floor(seconds/3600)).padStart(2,"0")+":"+String(Math.floor((seconds%3600)/60)).padStart(2,"0")+":"+String(seconds%60).padStart(2,"0");
-      item.append(title,times,remain);list.append(item);
+      const actions=document.createElement("div");actions.className="countdown-item-actions";
+      const done=document.createElement("button");done.type="button";done.className="countdown-complete-btn";done.textContent="确认完成";done.addEventListener("click",()=>completeCountdown(event.id));
+      const minimize=document.createElement("button");minimize.type="button";minimize.textContent="暂时关闭倒计时";minimize.addEventListener("click",minimizeCountdown);
+      actions.append(done,minimize);item.append(title,times,remain,actions);list.append(item);
     });
-    dock.hidden=running.length===0;
-    state.countdownActive=currentKeys;
-    updateSpecialSummaryLive();
+    const hasRunning=running.length>0;
+    dock.hidden=!hasRunning||state.countdownMinimized;bubble.hidden=!hasRunning||!state.countdownMinimized;
+    $("countdownBubbleCount").textContent=String(running.length);
+    state.countdownActive=currentKeys;updateSpecialSummaryLive();
   }
+
   function formatSummaryDuration(ms){
     let total=Math.max(0,Math.floor(ms/1000));
     const days=Math.floor(total/86400);total%=86400;
@@ -749,5 +763,5 @@
   }
   try{const savedMode=localStorage.getItem(INTERFACE_MODE_KEY);if(savedMode==="classic"||savedMode==="study")interfaceMode=savedMode;}catch(e){}
   applyInterfaceMode(interfaceMode,false);
-  load();render();checkReminders();updateCountdowns();setTimeout(startStartupSummaries,250);setInterval(checkReminders,5000);setInterval(updateCountdowns,1000);window.addEventListener("focus",()=>{checkReminders();updateCountdowns();});window.addEventListener("pageshow",()=>{checkReminders();updateCountdowns();});document.addEventListener("visibilitychange",()=>{if(!document.hidden){checkReminders();updateCountdowns();}});
+  load();setupCountdownBubbleDrag();render();checkReminders();updateCountdowns();setTimeout(startStartupSummaries,250);setInterval(checkReminders,5000);setInterval(updateCountdowns,1000);window.addEventListener("focus",()=>{checkReminders();updateCountdowns();});window.addEventListener("pageshow",()=>{checkReminders();updateCountdowns();});document.addEventListener("visibilitychange",()=>{if(!document.hidden){checkReminders();updateCountdowns();}});
 })();
