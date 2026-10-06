@@ -575,23 +575,22 @@
   $("clearSearchBtn").addEventListener("click",()=>{$("eventSearch").value="";renderSearchResults();$("eventSearch").focus();});
 
 
-  function openTitleChoice(date,suggestedTitle,onChoose){
-    const key=String(date||"");
-    const list=()=>occurrenceEvents(key).filter(e=>!e.longTask||e.date<=key&&(e.endDate||e.date)>=key);
-    const render=keyword=>{
+  function openTitleChoice(date,suggestedTitle,onChoose,longTask=false){
+    const defaultDate=String(date||"");
+    const render=(dateFilter,keyword)=>{
+      const key=String(dateFilter||defaultDate);
       const normalized=String(keyword||"").trim().toLocaleLowerCase();
-      const matches=list().filter(e=>!normalized||e.title.toLocaleLowerCase().includes(normalized));
-      showDraft('<h4>选择项目名称</h4><p>目标日期：'+esc(key)+'。你可以沿用这一天已有的项目名称，也可以新建一个项目。</p><label class="field-label" for="sameDayTitleDate">指定日期（查看当天项目）</label><input id="sameDayTitleDate" type="date" value="'+esc(key)+'"><label class="field-label" for="sameDayTitleSearch">搜索当天已有项目</label><div class="search-input-row"><input id="sameDayTitleSearch" type="search" value="'+esc(keyword||"")+'" placeholder="输入项目名称关键词"><button type="button" class="secondary-btn" id="sameDayTitleSearchBtn">搜索</button></div>'+matches.map(e=>'<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.time||"无指定时间")+(e.endTime?' – '+esc(e.endTime):'')+(e.longTask?' · 长期任务':'')+'</p><button type="button" class="secondary-btn" data-title-choice="'+esc(e.id)+'">使用这个项目名</button></div>').join('')+'<div class="draft-buttons"><button type="button" class="secondary-btn" id="createDistinctTitleBtn">新建项目</button><button type="button" class="primary-btn" id="useSuggestedTitleBtn">使用识别名称：'+esc(suggestedTitle||"新项目")+'</button></div>');
-      $("sameDayTitleSearchBtn").addEventListener("click",()=>render($("sameDayTitleSearch").value));
-      $("sameDayTitleDate").addEventListener("change",()=>{const nextDate=$("sameDayTitleDate").value;const query=$("sameDayTitleSearch").value;const original=key;render(query);const dateInput=$("sameDayTitleDate");dateInput.value=nextDate;});
-      $("sameDayTitleSearch").addEventListener("keydown",ev=>{if(ev.key==="Enter"){ev.preventDefault();render($("sameDayTitleSearch").value);}});
-      $("draftArea").querySelectorAll("[data-title-choice]").forEach(btn=>btn.addEventListener("click",()=>{
-        const event=state.events.find(e=>e.id===btn.dataset.titleChoice);if(event)onChoose(event.title);
-      }));
+      const matches=occurrenceEvents(key).filter(e=>!e.longTask||e.date<=key&&(e.endDate||e.date)>=key).filter(e=>!normalized||e.title.toLocaleLowerCase().includes(normalized));
+      const listHtml=matches.length?matches.map(e=>'<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.time||"无指定时间")+(e.endTime?' – '+esc(e.endTime):'')+(e.longTask?' · 长期任务':'')+'</p><button type="button" class="secondary-btn" data-title-choice="'+esc(e.id)+'">使用这个项目名</button></div>').join(""):'<p class="notice">这一天没有符合条件的项目。你可以更换日期、修改关键词，或直接新建。</p>';
+      showDraft('<h4>选择项目名称</h4><p>无论自动识别是否找到项目，都可以浏览指定日期的项目、搜索关键词，或直接新建。</p><label class="field-label" for="sameDayTitleDate">指定日期（查看当天项目）</label><input id="sameDayTitleDate" type="date" value="'+esc(key)+'"><label class="field-label" for="sameDayTitleSearch">项目名称关键词搜索</label><div class="search-input-row"><input id="sameDayTitleSearch" type="search" value="'+esc(keyword||"")+'" placeholder="输入项目名称关键词"><button type="button" class="secondary-btn" id="sameDayTitleSearchBtn">搜索</button></div><div class="title-choice-list"><h5>'+esc(key)+' 当天已有项目</h5>'+listHtml+'</div><div class="draft-buttons"><button type="button" class="secondary-btn" id="createDistinctTitleBtn">新建'+(longTask?'长期任务':'日程')+'</button><button type="button" class="primary-btn" id="useSuggestedTitleBtn">使用识别名称：'+esc(suggestedTitle||"新项目")+'</button></div>');
+      $("sameDayTitleSearchBtn").addEventListener("click",()=>render($("sameDayTitleDate").value,$("sameDayTitleSearch").value));
+      $("sameDayTitleSearch").addEventListener("keydown",ev=>{if(ev.key==="Enter"){ev.preventDefault();render($("sameDayTitleDate").value,$("sameDayTitleSearch").value);}});
+      $("sameDayTitleDate").addEventListener("change",()=>render($("sameDayTitleDate").value,$("sameDayTitleSearch").value));
+      $("draftArea").querySelectorAll("[data-title-choice]").forEach(btn=>btn.addEventListener("click",()=>{const event=state.events.find(e=>e.id===btn.dataset.titleChoice);if(event)onChoose(event.title);}));
       $("createDistinctTitleBtn").addEventListener("click",()=>onChoose(""));
       $("useSuggestedTitleBtn").addEventListener("click",()=>onChoose(suggestedTitle||""));
     };
-    render("");
+    render(defaultDate,"");
   }
 
   function handleCountdownCommand(raw,longOnly=false){
