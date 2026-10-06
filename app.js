@@ -662,7 +662,7 @@
         $("eventTime").value=startTime;$("eventEnd").value=endTime;
         $("eventCountdownEnabled").checked=countdownEnabled;syncCountdownOption();
         $("eventReminder").value=String(reminder);$("eventRepeat").value="none";
-      });
+      },true);
     });
   });
   $("parseBtn").addEventListener("click",()=>{
