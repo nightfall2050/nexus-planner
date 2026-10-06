@@ -20,7 +20,76 @@
   function occurs(e,key){if(key<e.date)return false;if(Array.isArray(e.excludedDates)&&e.excludedDates.includes(key))return false;const d=parseDate(key),start=parseDate(e.date);switch(e.repeat||"none"){case"none":return key===e.date;case"daily":return true;case"weekly":return d.getDay()===start.getDay();case"weekdays":return d.getDay()!==0&&d.getDay()!==6;case"monthly":return d.getDate()===start.getDate();default:return key===e.date;}}
   function occurrenceEvents(key){return state.events.filter(e=>occurs(e,key)).map(e=>({...e,...(e.overrides&&e.overrides[key]||{}),occurrenceDate:key,seriesId:e.id,repeat:e.repeat||"none"})).sort((a,b)=>(a.time||"99:99").localeCompare(b.time||"99:99"));}
   function monthEvents(y,m){const first=new Date(y,m,1),last=new Date(y,m+1,0),out=[];for(let d=1;d<=last.getDate();d++){const key=fmtDate(new Date(y,m,d));const ev=occurrenceEvents(key);out.push({key,day:d,ev,outside:false});}return {first,last,days:out};}
-  function render(){renderCalendar();renderDay();renderProgress();checkReminders();updateCountdowns();updateSpecialSummaryLive();}
+  const INTERFACE_MODE_KEY="nexus-planner-interface-mode-v1";
+  let interfaceMode="study";
+  function applyInterfaceMode(mode,persist=true){
+    interfaceMode=mode==="classic"?"classic":"study";
+    document.body.classList.toggle("study-mode",interfaceMode==="study");
+    $("studyDesk").hidden=interfaceMode!=="study";
+    $("studyModeBtn").classList.toggle("active",interfaceMode==="study");
+    $("classicModeBtn").classList.toggle("active",interfaceMode==="classic");
+    $("studyModeBtn").setAttribute("aria-pressed",String(interfaceMode==="study"));
+    $("classicModeBtn").setAttribute("aria-pressed",String(interfaceMode==="classic"));
+    if(persist){try{localStorage.setItem(INTERFACE_MODE_KEY,interfaceMode);}catch(e){}}
+    if(interfaceMode==="study")renderStudyDesk();
+  }
+  function studyEvent(e){return !!(e&&e.study&&typeof e.study==="object");}
+  function studyTaskCard(e,overdue=false){
+    const subject=e.study.subject||"未分类";
+    const minutes=Number(e.study.estimatedMinutes)||30;
+    const priority=Math.max(1,Math.min(3,Number(e.study.priority)||1));
+    const dateLabel=overdue?"逾期 · "+esc(e.date):(e.time?esc(e.time):"今日待办");
+    const card=document.createElement("article");
+    card.className="study-task-card"+(e.done?" is-done":"")+(overdue?" is-overdue":"");
+    card.innerHTML='<button type="button" class="study-task-check" aria-label="'+(e.done?"标记未完成":"标记完成")+'" title="'+(e.done?"标记未完成":"标记完成")+'">'+(e.done?"✓":"○")+'</button><div class="study-task-copy"><strong>'+esc(e.title)+'</strong><div class="study-task-meta"><span>'+esc(subject)+'</span><span>'+minutes+' 分钟</span><span>'+dateLabel+'</span></div></div><span class="study-priority priority-'+priority+'">'+(["","普通","较高","重要"][priority])+'</span><button type="button" class="mini-btn study-edit-btn" aria-label="编辑学习任务" title="编辑">✎</button>';
+    card.querySelector(".study-task-check").addEventListener("click",()=>toggleDone(e.seriesId||e.id,e.occurrenceDate||e.date));
+    card.querySelector(".study-edit-btn").addEventListener("click",()=>editEvent(e.seriesId||e.id));
+    return card;
+  }
+  function renderStudyDesk(){
+    const today=dateKey(new Date());
+    const todayEvents=occurrenceEvents(today);
+    const tasks=todayEvents.filter(studyEvent);
+    const done=tasks.filter(e=>e.done).length;
+    const pending=tasks.filter(e=>!e.done);
+    const minutes=tasks.reduce((sum,e)=>sum+(Number(e.study.estimatedMinutes)||30),0);
+    const pct=tasks.length?Math.round(done/tasks.length*100):0;
+    $("studyTaskCount").textContent=String(pending.length);
+    $("studyMinutes").textContent=minutes>=60?Math.floor(minutes/60)+" 小时"+(minutes%60?" "+(minutes%60)+" 分钟":""):minutes+" 分钟";
+    $("studyCompletion").textContent=done+" / "+tasks.length;
+    $("studyProgressBar").style.width=pct+"%";
+    $("studyListDate").textContent=parseDate(today).toLocaleDateString("zh-CN",{month:"short",day:"numeric",weekday:"short"});
+    const recommendation=$("studyRecommendation");recommendation.innerHTML="";
+    const overdue=state.events.filter(e=>studyEvent(e)&&(e.repeat||"none")==="none"&&e.date<today&&!e.done).sort((a,b)=>(Number(b.study.priority)||1)-(Number(a.study.priority)||1)||a.date.localeCompare(b.date));
+    const candidates=overdue.map(e=>({...e,_overdue:true})).concat(pending).sort((a,b)=>{
+      const oa=a._overdue?1:0,ob=b._overdue?1:0;
+      return ob-oa||(Number(b.study.priority)||1)-(Number(a.study.priority)||1)||(a.date||today).localeCompare(b.date||today)||(a.time||"99:99").localeCompare(b.time||"99:99");
+    });
+    if(candidates.length){
+      const e=candidates[0],mins=Number(e.study.estimatedMinutes)||30;
+      const reason=e._overdue?"这项任务已经逾期，建议先决定是完成它还是重新安排。":(Number(e.study.priority)||1)>=3?"这是你标记的重要学习任务。":e.date===today&&e.time?"这项任务已安排在今天，适合按计划开始。":"这是目前优先级较高的未完成学习任务。";
+      recommendation.innerHTML='<div class="recommendation-kicker">建议先做</div><h4>'+esc(e.title)+'</h4><p>'+esc(reason)+'</p><div class="recommendation-meta"><span>◷ '+mins+' 分钟</span><span>▦ '+esc(e.study.subject||"未分类")+'</span></div><button type="button" class="primary-btn" id="studyRecommendationEdit">查看 / 编辑任务</button>';
+      $("studyRecommendationEdit").addEventListener("click",()=>editEvent(e.id));
+    }else{
+      recommendation.innerHTML='<div class="study-empty-icon">✦</div><h4>先把想学的内容放进计划</h4><p>创建一项学习任务后，NEXUS 会根据优先级、日期和预计时长给出下一步建议。</p><button type="button" class="primary-btn" id="studyRecommendationAdd">＋ 新建学习任务</button>';
+      $("studyRecommendationAdd").addEventListener("click",()=>$("studyAddBtn").click());
+    }
+    const list=$("studyTaskList");list.innerHTML="";
+    if(!tasks.length)list.innerHTML='<div class="study-empty-state">今天还没有学习任务。为自己安排一个小而明确的开始吧。</div>';
+    else tasks.slice().sort((a,b)=>(Number(b.study.priority)||1)-(Number(a.study.priority)||1)||(a.time||"99:99").localeCompare(b.time||"99:99")).forEach(e=>list.append(studyTaskCard(e)));
+    const reality=$("studyRealityCheck");
+    const timed=tasks.filter(e=>e.time&&e.endTime);
+    const scheduledMinutes=timed.reduce((sum,e)=>{const p=e.time.split(":").map(Number),q=e.endTime.split(":").map(Number);const n=q[0]*60+q[1]-p[0]*60-p[1];return sum+(n>0?n:0);},0);
+    if(!tasks.length)reality.innerHTML='<strong>等待你的第一项学习任务</strong><p>把科目、预计时长和优先级写下来，就能开始规划。</p>';
+    else if(done===tasks.length)reality.innerHTML='<strong>今日学习任务已全部完成</strong><p>完成了 '+tasks.length+' 项任务，预计时长合计 '+minutes+' 分钟。可以休息，或主动安排额外学习。</p>';
+    else if(timed.length&&minutes-scheduledMinutes>30)reality.innerHTML='<strong>有些学习时间尚未安排到具体时段</strong><p>任务预计 '+minutes+' 分钟，已设置开始和结束时间的任务约 '+scheduledMinutes+' 分钟。请检查是否需要为其安排时间块。</p>';
+    else reality.innerHTML='<strong>计划已整理，记得留出缓冲</strong><p>当前有 '+pending.length+' 项未完成学习任务。预计时长是参考值；若时间不足，可调整优先级或日期。</p>';
+    const overdueWrap=$("studyOverdueWrap"),overdueList=$("studyOverdueList");overdueList.innerHTML="";
+    overdueWrap.hidden=!overdue.length;
+    overdue.slice(0,8).forEach(e=>overdueList.append(studyTaskCard(e,true)));
+    if(overdue.length>8){const more=document.createElement("p");more.className="muted tiny";more.textContent="另有 "+(overdue.length-8)+" 项逾期学习任务。";overdueList.append(more);}
+  }
+  function render(){renderCalendar();renderDay();renderProgress();renderStudyDesk();checkReminders();updateCountdowns();updateSpecialSummaryLive();}
   function renderCalendar(){const y=state.cursor.getFullYear(),m=state.cursor.getMonth();$("periodTitle").textContent=state.view==="day"?state.selected:state.cursor.toLocaleDateString("zh-CN",{year:"numeric",month:"long"});$("calendarHeading").textContent=state.view==="day"?"单日安排":"日历概览";$("calendarGrid").classList.toggle("day-view",state.view==="day");document.querySelectorAll(".view-btn").forEach(b=>b.classList.toggle("active",b.dataset.view===state.view));const grid=$("calendarGrid");grid.innerHTML="";if(state.view==="day"){const selected=parseDate(state.selected);const start=new Date(selected);start.setDate(selected.getDate()-selected.getDay());for(let i=0;i<7;i++){const d=new Date(start);d.setDate(start.getDate()+i);grid.append(makeDayCell(fmtDate(d),d.getDate(),d.getMonth()!==selected.getMonth()));}return;}const first=new Date(y,m,1),offset=first.getDay(),days=new Date(y,m+1,0).getDate(),prevDays=new Date(y,m,0).getDate();for(let i=0;i<42;i++){let d,key,outside=false;if(i<offset){d=prevDays-offset+i+1;key=fmtDate(new Date(y,m-1,d));outside=true;}else if(i>=offset+days){d=i-offset-days+1;key=fmtDate(new Date(y,m+1,d));outside=true;}else{d=i-offset+1;key=fmtDate(new Date(y,m,d));}grid.append(makeDayCell(key,d,outside));}}
   function makeDayCell(key,day,outside){const btn=document.createElement("button");btn.type="button";btn.className="calendar-day"+(outside?" outside":"")+(key===state.selected?" selected":"")+(key===dateKey(new Date())?" today":"");btn.setAttribute("aria-label",key+" 日程");const number=document.createElement("span");number.className="day-number";number.textContent=day;btn.append(number);const evs=occurrenceEvents(key);if(evs.length){const wrap=document.createElement("span");wrap.className="day-events";evs.slice(0,2).forEach(e=>{const chip=document.createElement("span");chip.className="event-chip"+(e.done?" done":(!e.time?" todo":""));chip.textContent=(e.specialReminder?"★ ":"")+(e.time?e.time+" ":"")+e.title;if(e.specialReminder)chip.classList.add("special-event-chip");wrap.append(chip);});btn.append(wrap);if(evs.length>2){const more=document.createElement("span");more.className="more-chip";more.textContent="+"+(evs.length-2)+" 项";btn.append(more);}}btn.addEventListener("click",()=>{state.selected=key;state.cursor=new Date(parseDate(key).getFullYear(),parseDate(key).getMonth(),1);render();});return btn;}
   function renderDay(){const d=parseDate(state.selected),evs=occurrenceEvents(state.selected);$("selectedHeading").textContent=d.toLocaleDateString("zh-CN",{month:"long",day:"numeric",weekday:"long"});$("selectedBadge").textContent=state.selected.slice(5);const list=$("eventList");list.innerHTML="";if(!evs.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">⌁</div>这一天还没有安排。<br>给自己留一点可能性。</div>';return;}evs.forEach(e=>{const card=document.createElement("article");card.className="event-card"+(e.done?" done":"")+(e.time?"":" todo");const time=e.time?(e.endTime?e.time+" – "+e.endTime:e.time+" · 待办"):(e.repeat!=="none"?"重复日程":"待办事项");card.innerHTML='<span class="event-stripe"></span><div class="event-main"><div class="event-time">'+esc(time)+(e.repeat!=="none"?' · '+repeatLabel(e.repeat):"")+'</div><div class="event-title">'+(e.specialReminder?'<span class="special-star" aria-label="特别提醒">★</span> ':"")+esc(e.title)+'</div>'+(e.location?'<div class="event-meta">⌖ '+esc(e.location)+'</div>':"")+(e.notes?'<div class="event-meta">'+esc(e.notes)+'</div>':"")+'</div><div class="event-actions"><button class="check-btn '+(e.done?"checked":"")+'" title="'+(e.done?"标记未完成":"标记完成")+'" aria-label="'+(e.done?"标记未完成":"标记完成")+'">'+(e.done?"✓":"○")+'</button><button class="mini-btn" title="编辑" aria-label="编辑">✎</button><button class="mini-btn" title="删除" aria-label="删除">×</button></div>';const buttons=card.querySelectorAll("button");buttons[0].addEventListener("click",()=>toggleDone(e.seriesId,e.occurrenceDate));buttons[1].addEventListener("click",()=>editEvent(e.seriesId));buttons[2].addEventListener("click",()=>deleteEvent(e.seriesId));const star=document.createElement("button");star.type="button";star.className="mini-btn event-star-btn"+(e.specialReminder?" is-special":"");star.title=e.specialReminder?"取消特别提醒":"设为特别提醒";star.setAttribute("aria-label",star.title);star.textContent="★";star.addEventListener("click",()=>toggleSpecialReminder(e.seriesId,e.occurrenceDate));card.querySelector(".event-actions").insertBefore(star,buttons[1]);list.append(card);});}
@@ -29,13 +98,18 @@
   function toggleSpecialReminder(eventId,key){const e=state.events.find(x=>x.id===eventId);if(!e)return;snapshot();e.specialReminder=!e.specialReminder;save();render();toast(e.specialReminder?"已设为特别提醒":"已取消特别提醒");}
   function toggleDone(eventId,key){snapshot();const e=state.events.find(x=>x.id===eventId);if(!e)return;e.done=!e.done;save();render();toast(e.done?"已标记完成":"已恢复为未完成");}
   function syncCountdownOption(){const label=$("countdownOption");const enabled=!!$("eventEnd").value;if(label)label.hidden=!enabled;if(!enabled)$("eventCountdownEnabled").checked=false;}
-  function openEditor(e){$("eventForm").reset();$("eventId").value=e?.id||"";$("dialogTitle").textContent=e?"编辑日程":"新建日程";$("eventDate").disabled=state.occurrenceEditContext?.mode==="series";$("eventRepeat").disabled=state.occurrenceEditContext?.mode==="series";const scopeHint=$("editScopeHint");if(scopeHint){scopeHint.hidden=!state.occurrenceEditContext;scopeHint.textContent=state.occurrenceEditContext?.mode==="series"?"统一修改模式：会更新所有同名日程的标题、时间、地点、提醒和星标；各日程日期与重复规则保持不变。":state.occurrenceEditContext?.mode==="single"?"单日程修改模式：只影响选中的这一天；其他重复日期保持不变。":"";} $("eventTitle").value=e?.title||"";$("eventDate").value=state.occurrenceEditContext?.mode==="single"?state.occurrenceEditContext.occurrenceDate:e?.date||state.selected;$("eventTime").value=e?.time||"";$("eventEnd").value=e?.endTime||"";$("eventReminder").value=String(e?.reminder||0);$("eventLocation").value=e?.location||"";$("eventNotes").value=e?.notes||"";$("eventRepeat").value=e?.repeat||"none";$("eventCountdownEnabled").checked=!!e?.countdownEnabled;$("eventSpecialReminder").checked=!!e?.specialReminder;syncCountdownOption();$("eventDialog").showModal();setTimeout(()=>$("eventTitle").focus(),30);}
+  function openEditor(e){$("eventForm").reset();$("eventId").value=e?.id||"";$("dialogTitle").textContent=e?"编辑日程":"新建日程";$("eventDate").disabled=state.occurrenceEditContext?.mode==="series";$("eventRepeat").disabled=state.occurrenceEditContext?.mode==="series";const scopeHint=$("editScopeHint");if(scopeHint){scopeHint.hidden=!state.occurrenceEditContext;scopeHint.textContent=state.occurrenceEditContext?.mode==="series"?"统一修改模式：会更新所有同名日程的标题、时间、地点、提醒和星标；各日程日期与重复规则保持不变。":state.occurrenceEditContext?.mode==="single"?"单日程修改模式：只影响选中的这一天；其他重复日期保持不变。":"";} $("eventTitle").value=e?.title||"";$("eventStudyEnabled").checked=!!e?.study;$("eventStudySubject").value=e?.study?.subject||"";$("eventStudyMinutes").value=String(e?.study?.estimatedMinutes||30);$("eventStudyPriority").value=String(e?.study?.priority||1);$("eventStudyFields").hidden=!$("eventStudyEnabled").checked;$("eventDate").value=state.occurrenceEditContext?.mode==="single"?state.occurrenceEditContext.occurrenceDate:e?.date||state.selected;$("eventTime").value=e?.time||"";$("eventEnd").value=e?.endTime||"";$("eventReminder").value=String(e?.reminder||0);$("eventLocation").value=e?.location||"";$("eventNotes").value=e?.notes||"";$("eventRepeat").value=e?.repeat||"none";$("eventCountdownEnabled").checked=!!e?.countdownEnabled;$("eventSpecialReminder").checked=!!e?.specialReminder;syncCountdownOption();$("eventDialog").showModal();setTimeout(()=>$("eventTitle").focus(),30);}
   $("eventEnd").addEventListener("input",syncCountdownOption);
+  $("eventStudyEnabled").addEventListener("change",()=>{$("eventStudyFields").hidden=!$("eventStudyEnabled").checked;});
+  $("studyModeBtn").addEventListener("click",()=>applyInterfaceMode("study"));
+  $("classicModeBtn").addEventListener("click",()=>applyInterfaceMode("classic"));
+  $("studyAddBtn").addEventListener("click",()=>{$("addBtn").click();$("eventStudyEnabled").checked=true;$("eventStudyFields").hidden=false;});
   function editEvent(eventId){const e=state.events.find(x=>x.id===eventId);if(!e)return;if(e.repeat!=="none"&&!confirm("这是重复日程。直接编辑会修改整个重复系列；若只改某一天，请使用自然语言修改并选择“单日程修改”。继续统一修改吗？"))return;state.occurrenceEditContext=null;openEditor(e);}
   function deleteEvent(eventId){const e=state.events.find(x=>x.id===eventId);if(!e)return;const message=e.repeat!=="none"?"这会删除整个重复系列，而不是只删除当天。建议先导出备份。确定删除？":"确定删除“"+e.title+"”？";if(!confirm(message))return;snapshot();state.events=state.events.filter(x=>x.id!==eventId);save();render();toast("日程已删除。可用撤销恢复。");}
   $("eventForm").addEventListener("submit",ev=>{
     ev.preventDefault();
     const title=$("eventTitle").value.trim(),date=$("eventDate").value,time=$("eventTime").value,endTime=$("eventEnd").value,reminder=Number($("eventReminder").value),countdownEnabled=!!$("eventCountdownEnabled").checked&&!!endTime,specialReminder=!!$("eventSpecialReminder").checked;
+    const studyData=$("eventStudyEnabled").checked?{subject:$("eventStudySubject").value.trim(),estimatedMinutes:Math.max(5,Math.min(1440,Number($("eventStudyMinutes").value)||30)),priority:Math.max(1,Math.min(3,Number($("eventStudyPriority").value)||1))}:undefined;
     if(!title||!date){toast("请填写事项名称和日期");return;}
     if(endTime&&!time){toast("设置结束时间前，请先填写开始时间");return;}
     if(time&&endTime&&endTime<=time){toast("结束时间必须晚于开始时间");return;}
@@ -45,7 +119,7 @@
     if(previous&&context&&context.mode==="single"&&(previous.repeat||"none")!=="none"){
       snapshot();
       const key=context.occurrenceDate, oldOverrides=previous.overrides||{}, base=oldOverrides[key]||{};
-      const updated={title,time,endTime,reminder,countdownEnabled,specialReminder,location:$("eventLocation").value.trim(),notes:$("eventNotes").value.trim()};
+      const updated={title,time,endTime,reminder,countdownEnabled,specialReminder,location:$("eventLocation").value.trim(),notes:$("eventNotes").value.trim(),study:studyData};
       state.reminderQueue=state.reminderQueue.filter(entry=>!entry.key.startsWith(previous.id+"@"+key+":"));for(const queuedKey of state.reminderSnoozed.keys())if(queuedKey.startsWith(previous.id+"@"+key+":"))state.reminderSnoozed.delete(queuedKey);
       if(date!==key){
         previous.excludedDates=Array.isArray(previous.excludedDates)?previous.excludedDates:[];
@@ -58,12 +132,12 @@
     state.occurrenceEditContext=null;
     const timingChanged=!!previous&&(["date","time","endTime","reminder"].some(k=>String(previous[k]||"")!==String(({date,time,endTime,reminder})[k]||""))||!!previous.countdownEnabled!==countdownEnabled);
     const reminderRevision=(previous?Number(previous.reminderRevision||0):0)+(timingChanged?1:0);
-    const item={id:oldId||id(),title,date:context&&context.mode==="series"&&previous?previous.date:date,time,endTime,reminder,reminderRevision,countdownEnabled,specialReminder,location:$("eventLocation").value.trim(),notes:$("eventNotes").value.trim(),repeat:$("eventRepeat").value,done:previous?!!previous.done:false,excludedDates:Array.isArray(previous?.excludedDates)?previous.excludedDates:[],overrides:context&&context.mode==="series"?{}:(previous?.overrides||{})};
+    const item={id:oldId||id(),title,date:context&&context.mode==="series"&&previous?previous.date:date,time,endTime,reminder,reminderRevision,countdownEnabled,specialReminder,location:$("eventLocation").value.trim(),notes:$("eventNotes").value.trim(),repeat:$("eventRepeat").value,done:previous?!!previous.done:false,excludedDates:Array.isArray(previous?.excludedDates)?previous.excludedDates:[],overrides:context&&context.mode==="series"?{}:(previous?.overrides||{}),study:studyData};
     if(timingChanged&&oldId){const affectedIds=context&&context.mode==="series"&&Array.isArray(context.matchingIds)&&context.matchingIds.length?context.matchingIds:[oldId];const affected=new Set(affectedIds);state.reminderQueue=state.reminderQueue.filter(entry=>!affected.has(entry.event.id));for(const key of state.reminderSnoozed.keys())if(affectedIds.some(id=>key.startsWith(id+"@")))state.reminderSnoozed.delete(key);}
     snapshot();
     if(context&&context.mode==="series"&&Array.isArray(context.matchingIds)&&context.matchingIds.length){
       const ids=new Set(context.matchingIds);
-      state.events=state.events.map(existing=>ids.has(existing.id)?{...existing,title:item.title,time:item.time,endTime:item.endTime,reminder:item.reminder,reminderRevision:item.reminderRevision,countdownEnabled:item.countdownEnabled,specialReminder:item.specialReminder,location:item.location,notes:item.notes,overrides:{}}:existing);
+      state.events=state.events.map(existing=>ids.has(existing.id)?{...existing,title:item.title,time:item.time,endTime:item.endTime,reminder:item.reminder,reminderRevision:item.reminderRevision,countdownEnabled:item.countdownEnabled,specialReminder:item.specialReminder,location:item.location,notes:item.notes,study:item.study,overrides:{}}:existing);
     }else if(oldId)state.events=state.events.map(e=>e.id===oldId?item:e);else state.events.push(item);
     save();state.selected=date;const parsed=parseDate(date);state.cursor=new Date(parsed.getFullYear(),parsed.getMonth(),1);$("eventDialog").close();render();checkReminders();updateCountdowns();toast(oldId?"日程已更新":"日程已保存到当前浏览器");
   });
@@ -575,5 +649,7 @@
   if ("serviceWorker" in navigator && location.protocol === "https:") {
     window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
   }
+  try{const savedMode=localStorage.getItem(INTERFACE_MODE_KEY);if(savedMode==="classic"||savedMode==="study")interfaceMode=savedMode;}catch(e){}
+  applyInterfaceMode(interfaceMode,false);
   load();render();checkReminders();updateCountdowns();setTimeout(startStartupSummaries,250);setInterval(checkReminders,5000);setInterval(updateCountdowns,1000);window.addEventListener("focus",()=>{checkReminders();updateCountdowns();});window.addEventListener("pageshow",()=>{checkReminders();updateCountdowns();});document.addEventListener("visibilitychange",()=>{if(!document.hidden){checkReminders();updateCountdowns();}});
 })();
