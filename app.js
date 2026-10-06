@@ -241,7 +241,23 @@
   function renderSpecialSummary(){
     const list=$("specialSummaryList");list.innerHTML="";
     const now=new Date(),todayKey=fmtDate(now);
-    const items=state.events.map(event=>{if(event.done)return null;const key=summaryOccurrenceDate(event,todayKey);const override=event.overrides&&event.overrides[key];return (override&&Object.prototype.hasOwnProperty.call(override,"specialReminder")?override.specialReminder:!!event.specialReminder)?{event:{...event,...(override||{})},key}:null;}).filter(Boolean);
+    const items=[];
+    for(const event of state.events){
+      if(event.done)continue;
+      if((event.repeat||"none")==="none"){
+        const key=event.date,override=event.overrides&&event.overrides[key];
+        const isSpecial=override&&Object.prototype.hasOwnProperty.call(override,"specialReminder")?override.specialReminder:!!event.specialReminder;
+        if(isSpecial)items.push({event:{...event,...(override||{})},key});
+        continue;
+      }
+      const base=event.date>todayKey?event.date:todayKey,d=parseDate(base);
+      for(let n=0;n<=370;n++){
+        const candidate=new Date(d);candidate.setDate(d.getDate()+n);const key=fmtDate(candidate);
+        if(!occurs(event,key))continue;
+        const override=event.overrides&&event.overrides[key],isSpecial=override&&Object.prototype.hasOwnProperty.call(override,"specialReminder")?override.specialReminder:!!event.specialReminder;
+        if(isSpecial){items.push({event:{...event,...(override||{})},key});break;}
+      }
+    }
     items.sort((a,b)=>a.key.localeCompare(b.key)||(a.event.time||"").localeCompare(b.event.time||""));
     if(!items.length){const empty=document.createElement("div");empty.className="summary-empty";empty.textContent="还没有设置特别提醒。可以在任一日程的编辑窗口中勾选“设为特别提醒”。";list.append(empty);return;}
     items.forEach(({event,key})=>list.append(buildSummaryRow(event,key,true)));
