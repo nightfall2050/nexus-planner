@@ -99,3 +99,18 @@
 
 /* Dedicated long-task entry and editor fields */
 .toolbar-create-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.long-natural-entry{margin-top:18px;padding-top:13px;border-top:1px solid var(--line)}#longTaskEndDateField[hidden]{display:none}@media(max-width:620px){.toolbar-create-actions{width:100%;display:grid;grid-template-columns:1fr 1fr}.toolbar-create-actions button{min-width:0;padding:10px 8px;font-size:11px}}
+
+.countdown-minimize{margin-left:auto;border:1px solid #50698d;background:#1b2e4b;color:#dbeaff;border-radius:8px;width:29px;height:27px;font-size:18px;line-height:1}
+.countdown-item-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.countdown-item-actions button{border:1px solid #54769e;background:#1b2e4b;color:#dceaff;border-radius:8px;padding:7px 10px;font-size:11px}
+.countdown-item-actions .countdown-complete-btn{border-color:#3d9a7d;background:#174638;color:#b9f5dc}
+.countdown-bubble{position:fixed;right:22px;bottom:22px;z-index:5001;width:58px;height:58px;border-radius:50%;border:1px solid #8bb9ff;background:radial-gradient(circle at 35% 25%,#2e5a88,#101d32 75%);box-shadow:0 8px 30px #0008,0 0 24px #6daaff35;color:#d9efff;font-size:23px;display:grid;place-items:center;touch-action:none;user-select:none}
+.countdown-bubble[hidden]{display:none}
+.countdown-bubble span{position:absolute;right:-2px;top:-4px;min-width:21px;height:21px;padding:0 5px;display:grid;place-items:center;border-radius:12px;background:#65ddb1;color:#08251e;font-size:10px;font-weight:800;border:2px solid #0d192b}
+.event-status-badge{display:inline-flex;align-items:center;margin-left:7px;padding:2px 6px;border-radius:5px;font-size:9px;font-weight:700;vertical-align:middle;white-space:nowrap}
+.event-status-complete{background:#1d5147;color:#b4f1dc}
+.event-status-ongoing{background:#244a78;color:#c7e1ff}
+.event-status-missed{background:#5c2c43;color:#ffc4d4}
+.event-chip.status-missed{background:#5c2c43;border-color:#ff8eab;color:#ffd4df}
+.event-chip.status-ongoing{background:#244a78;border-color:#71a7ff;color:#d6e8ff}
+.event-chip.status-complete{background:#1d5147;border-color:#63ddb1;color:#b4f1dc}
