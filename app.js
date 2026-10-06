@@ -3,7 +3,7 @@
   const $ = (id) => document.getElementById(id);
   const STORAGE_KEY = "nexus-planner-v1";
   function fmtDate(d) { return [d.getFullYear(), String(d.getMonth()+1).padStart(2,"0"), String(d.getDate()).padStart(2,"0")].join("-"); }
-  const state = { events: [], selected: dateKey(new Date()), cursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), view: "month", undo: null, reminderSeen: new Set(), reminderQueue: [], activeReminder: null, reminderSnoozed: new Map(), toastTimer: null };
+  const state = { events: [], selected: dateKey(new Date()), cursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), view: "month", undo: null, reminderSeen: new Set(), reminderQueue: [], activeReminder: null, reminderSnoozed: new Map(), countdownActive: new Set(), toastTimer: null };
   function dateKey(d){return fmtDate(d);}
   function parseDate(s){const [y,m,d]=String(s).split("-").map(Number);return new Date(y,m-1,d,12);}
   function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
@@ -20,7 +20,7 @@
   function occurs(e,key){if(key<e.date)return false;if(Array.isArray(e.excludedDates)&&e.excludedDates.includes(key))return false;const d=parseDate(key),start=parseDate(e.date);switch(e.repeat||"none"){case"none":return key===e.date;case"daily":return true;case"weekly":return d.getDay()===start.getDay();case"weekdays":return d.getDay()!==0&&d.getDay()!==6;case"monthly":return d.getDate()===start.getDate();default:return key===e.date;}}
   function occurrenceEvents(key){return state.events.filter(e=>occurs(e,key)).map(e=>({...e,occurrenceDate:key,seriesId:e.id})).sort((a,b)=>(a.time||"99:99").localeCompare(b.time||"99:99"));}
   function monthEvents(y,m){const first=new Date(y,m,1),last=new Date(y,m+1,0),out=[];for(let d=1;d<=last.getDate();d++){const key=fmtDate(new Date(y,m,d));const ev=occurrenceEvents(key);out.push({key,day:d,ev,outside:false});}return {first,last,days:out};}
-  function render(){renderCalendar();renderDay();renderProgress();checkReminders();}
+  function render(){renderCalendar();renderDay();renderProgress();checkReminders();updateCountdowns();}
   function renderCalendar(){const y=state.cursor.getFullYear(),m=state.cursor.getMonth();$("periodTitle").textContent=state.view==="day"?state.selected:state.cursor.toLocaleDateString("zh-CN",{year:"numeric",month:"long"});$("calendarHeading").textContent=state.view==="day"?"单日安排":"日历概览";$("calendarGrid").classList.toggle("day-view",state.view==="day");document.querySelectorAll(".view-btn").forEach(b=>b.classList.toggle("active",b.dataset.view===state.view));const grid=$("calendarGrid");grid.innerHTML="";if(state.view==="day"){const selected=parseDate(state.selected);const start=new Date(selected);start.setDate(selected.getDate()-selected.getDay());for(let i=0;i<7;i++){const d=new Date(start);d.setDate(start.getDate()+i);grid.append(makeDayCell(fmtDate(d),d.getDate(),d.getMonth()!==selected.getMonth()));}return;}const first=new Date(y,m,1),offset=first.getDay(),days=new Date(y,m+1,0).getDate(),prevDays=new Date(y,m,0).getDate();for(let i=0;i<42;i++){let d,key,outside=false;if(i<offset){d=prevDays-offset+i+1;key=fmtDate(new Date(y,m-1,d));outside=true;}else if(i>=offset+days){d=i-offset-days+1;key=fmtDate(new Date(y,m+1,d));outside=true;}else{d=i-offset+1;key=fmtDate(new Date(y,m,d));}grid.append(makeDayCell(key,d,outside));}}
   function makeDayCell(key,day,outside){const btn=document.createElement("button");btn.type="button";btn.className="calendar-day"+(outside?" outside":"")+(key===state.selected?" selected":"")+(key===dateKey(new Date())?" today":"");btn.setAttribute("aria-label",key+" 日程");const number=document.createElement("span");number.className="day-number";number.textContent=day;btn.append(number);const evs=occurrenceEvents(key);if(evs.length){const wrap=document.createElement("span");wrap.className="day-events";evs.slice(0,2).forEach(e=>{const chip=document.createElement("span");chip.className="event-chip"+(e.done?" done":(!e.time?" todo":""));chip.textContent=(e.time?e.time+" ":"")+e.title;wrap.append(chip);});btn.append(wrap);if(evs.length>2){const more=document.createElement("span");more.className="more-chip";more.textContent="+"+(evs.length-2)+" 项";btn.append(more);}}btn.addEventListener("click",()=>{state.selected=key;state.cursor=new Date(parseDate(key).getFullYear(),parseDate(key).getMonth(),1);render();});return btn;}
   function renderDay(){const d=parseDate(state.selected),evs=occurrenceEvents(state.selected);$("selectedHeading").textContent=d.toLocaleDateString("zh-CN",{month:"long",day:"numeric",weekday:"long"});$("selectedBadge").textContent=state.selected.slice(5);const list=$("eventList");list.innerHTML="";if(!evs.length){list.innerHTML='<div class="empty-state"><div class="empty-icon">⌁</div>这一天还没有安排。<br>给自己留一点可能性。</div>';return;}evs.forEach(e=>{const card=document.createElement("article");card.className="event-card"+(e.done?" done":"")+(e.time?"":" todo");const time=e.time?(e.endTime?e.time+" – "+e.endTime:e.time):(e.repeat!=="none"?"重复日程":"待办事项");card.innerHTML='<span class="event-stripe"></span><div class="event-main"><div class="event-time">'+esc(time)+(e.repeat!=="none"?' · '+repeatLabel(e.repeat):"")+'</div><div class="event-title">'+esc(e.title)+'</div>'+(e.location?'<div class="event-meta">⌖ '+esc(e.location)+'</div>':"")+(e.notes?'<div class="event-meta">'+esc(e.notes)+'</div>':"")+'</div><div class="event-actions"><button class="check-btn '+(e.done?"checked":"")+'" title="'+(e.done?"标记未完成":"标记完成")+'" aria-label="'+(e.done?"标记未完成":"标记完成")+'">'+(e.done?"✓":"○")+'</button><button class="mini-btn" title="编辑" aria-label="编辑">✎</button><button class="mini-btn" title="删除" aria-label="删除">×</button></div>';const buttons=card.querySelectorAll("button");buttons[0].addEventListener("click",()=>toggleDone(e.seriesId,e.occurrenceDate));buttons[1].addEventListener("click",()=>editEvent(e.seriesId));buttons[2].addEventListener("click",()=>deleteEvent(e.seriesId));list.append(card);});}
@@ -53,13 +53,95 @@
   $("todayBtn").addEventListener("click",()=>{state.selected=dateKey(new Date());state.cursor=new Date(new Date().getFullYear(),new Date().getMonth(),1);render();});document.querySelectorAll(".view-btn").forEach(b=>b.addEventListener("click",()=>{state.view=b.dataset.view;renderCalendar();}));
   $("exportBtn").addEventListener("click",()=>{const blob=new Blob([JSON.stringify({app:"NEXUS Planner",version:1,exportedAt:new Date().toISOString(),events:state.events},null,2)],{type:"application/json"});const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="nexus-planner-backup-"+dateKey(new Date())+".json";a.click();URL.revokeObjectURL(url);toast("备份文件已生成");});
   $("importBtn").addEventListener("click",()=>$("importFile").click());$("importFile").addEventListener("change",async ev=>{const file=ev.target.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text()),events=Array.isArray(data)?data:data.events;if(!Array.isArray(events)||!events.every(validEvent))throw new Error("invalid");if(!confirm("将导入 "+events.length+" 条日程。选择“确定”会用备份内容替换当前全部日程；建议先导出现有备份。继续？"))return;snapshot();state.events=events;save();render();toast("备份导入完成");}catch(e){toast("文件格式不正确，未更改当前日程。");}finally{ev.target.value="";}});
-  function showNextReminder(){if(state.activeReminder||!state.reminderQueue.length)return;const item=state.reminderQueue.shift();state.activeReminder=item;const overlay=$("reminderOverlay");$("reminderTitle").textContent=item.event.title;$("reminderTime").textContent=item.event.time+" · "+item.event.date;$("reminderLocation").textContent=item.event.location||"未设置地点";$("reminderNotes").textContent=item.event.notes||"";overlay.hidden=false;document.body.classList.add("reminder-open");if("Notification"in window&&Notification.permission==="granted"){try{new Notification("NEXUS 日程提醒",{body:item.event.title+" · "+item.event.time+(item.event.location?" · "+item.event.location:""),tag:item.key});}catch(_){}}}
+  function showNextReminder(){
+    if(state.activeReminder||!state.reminderQueue.length)return;
+    const item=state.reminderQueue.shift();state.activeReminder=item;
+    const overlay=$("reminderOverlay");
+    $("reminderBadgeText").textContent=item.kind==="advance"?"即将开始":item.kind==="start"?"待办正式开始":item.kind==="finish"?"限时任务结束":"日程提醒";
+    $("reminderTitle").textContent=item.event.title;
+    $("reminderTime").textContent=(item.event.time||"未设置时间")+" · "+item.event.date+(item.event.endTime?" – "+item.event.endTime:"");
+    $("reminderLocation").textContent=item.event.location||"未设置地点";
+    $("reminderNotes").textContent=item.event.notes||"";
+    overlay.hidden=false;document.body.classList.add("reminder-open");
+    if("Notification"in window&&Notification.permission==="granted"){
+      try{new Notification("NEXUS "+$("reminderBadgeText").textContent,{body:item.event.title+" · "+(item.event.time||"")+(item.event.location?" · "+item.event.location:""),tag:item.key});}catch(_){}
+    }
+  }
   function closeReminder(){state.activeReminder=null;$("reminderOverlay").hidden=true;document.body.classList.remove("reminder-open");showNextReminder();}
   $("dismissReminderBtn").addEventListener("click",closeReminder);
-  $("snoozeReminderBtn").addEventListener("click",()=>{const item=state.activeReminder;if(!item)return;state.reminderSnoozed.set(item.key,{event:item.event,at:Date.now()+5*60000});toast("已延后 5 分钟提醒");closeReminder();});
-  function checkReminders(){const now=new Date(),todayKey=fmtDate(now);for(const [key,item] of state.reminderSnoozed){if(now.getTime()>=item.at){state.reminderSnoozed.delete(key);state.reminderQueue.push({key:key+":snooze:"+now.getTime(),event:item.event});}}
-    for(const e of state.events){if(Number(e.reminder||0)<0||!e.time||e.done||!occurs(e,todayKey))continue;const start=parseDate(todayKey);const parts=e.time.split(":").map(Number);if(parts.length<2||!Number.isFinite(parts[0])||!Number.isFinite(parts[1]))continue;start.setHours(parts[0],parts[1],0,0);const when=start.getTime()-Number(e.reminder||0)*60000,delta=now.getTime()-when,key=e.id+"@"+todayKey;if(delta>=0&&delta<15*60000&&!state.reminderSeen.has(key)){state.reminderSeen.add(key);persistReminderSeen();state.reminderQueue.push({key,event:e});}}
-    showNextReminder();}
+  $("snoozeReminderBtn").addEventListener("click",()=>{
+    const item=state.activeReminder;if(!item)return;
+    state.reminderSnoozed.set(item.key,{event:item.event,at:Date.now()+5*60000,kind:item.kind});
+    toast("已延后 5 分钟提醒");closeReminder();
+  });
+  function enqueueReminder(key,event,kind){
+    if(state.reminderSeen.has(key))return;
+    state.reminderSeen.add(key);persistReminderSeen();
+    state.reminderQueue.push({key,event:{...event},kind});
+  }
+  function checkReminders(){
+    const now=new Date(),todayKey=fmtDate(now),nowMs=now.getTime(),catchUp=15*60000;
+    for(const [key,item] of state.reminderSnoozed){
+      if(nowMs>=item.at){
+        state.reminderSnoozed.delete(key);
+        state.reminderQueue.push({key:key+":snooze:"+nowMs,event:item.event,kind:item.kind});
+      }
+    }
+    for(const e of state.events){
+      if(!e.time||e.done||!occurs(e,todayKey))continue;
+      const start=parseDate(todayKey),parts=e.time.split(":").map(Number);
+      if(parts.length<2||!Number.isFinite(parts[0])||!Number.isFinite(parts[1]))continue;
+      start.setHours(parts[0],parts[1],0,0);
+      const startMs=start.getTime(),reminder=Number(e.reminder||0),revision=Number(e.reminderRevision||0);
+      const common=e.id+"@"+todayKey+":r"+revision+":"+e.time+":"+(e.endTime||"")+":"+reminder;
+      if(reminder>0&&nowMs<startMs){
+        const advanceAt=startMs-reminder*60000,delta=nowMs-advanceAt;
+        if(delta>=0&&delta<catchUp)enqueueReminder(common+":advance",e,"advance");
+      }
+      const startDelta=nowMs-startMs,startKey=common+":start";
+      if(startDelta>=0&&startDelta<catchUp&&!state.reminderSeen.has(startKey)){
+        if(e.endTime&&e.countdownEnabled){
+          state.reminderSeen.add(startKey);persistReminderSeen();
+        }else enqueueReminder(startKey,e,"start");
+      }
+    }
+    showNextReminder();
+  }
+  function updateCountdowns(){
+    const now=new Date(),todayKey=fmtDate(now),nowMs=now.getTime(),dock=$("countdownDock"),list=$("countdownItems");
+    const running=[],currentKeys=new Set();
+    for(const e of state.events){
+      if(!e.countdownEnabled||!e.time||!e.endTime||e.done||!occurs(e,todayKey))continue;
+      const start=parseDate(todayKey),end=parseDate(todayKey),sp=e.time.split(":").map(Number),ep=e.endTime.split(":").map(Number);
+      start.setHours(sp[0],sp[1],0,0);end.setHours(ep[0],ep[1],0,0);
+      if(nowMs>=start.getTime()&&nowMs<end.getTime()){
+        running.push({event:e,endMs:end.getTime()});
+        currentKeys.add(e.id+"@"+todayKey);
+      }
+    }
+    for(const key of state.countdownActive){
+      if(currentKeys.has(key))continue;
+      const e=state.events.find(item=>key.startsWith(item.id+"@"));
+      if(!e||e.done||!e.endTime||!e.time)continue;
+      const day=key.slice(e.id.length+1);
+      if(day!==todayKey)continue;
+      const end=parseDate(day),parts=e.endTime.split(":").map(Number);
+      end.setHours(parts[0],parts[1],0,0);
+      if(nowMs>=end.getTime())toast("限时任务时间已结束："+e.title);
+    }
+    list.innerHTML="";
+    running.forEach(({event,endMs})=>{
+      const item=document.createElement("div");item.className="countdown-item";
+      const title=document.createElement("strong");title.className="countdown-title";title.textContent=event.title;
+      const times=document.createElement("div");times.className="countdown-meta";times.textContent=event.time+" – "+event.endTime+(event.location?" · "+event.location:"");
+      const seconds=Math.max(0,Math.ceil((endMs-nowMs)/1000));
+      const remain=document.createElement("div");remain.className="countdown-clock";
+      remain.textContent=String(Math.floor(seconds/3600)).padStart(2,"0")+":"+String(Math.floor((seconds%3600)/60)).padStart(2,"0")+":"+String(seconds%60).padStart(2,"0");
+      item.append(title,times,remain);list.append(item);
+    });
+    dock.hidden=running.length===0;
+    state.countdownActive=currentKeys;
+  }
   $("notifyBtn").addEventListener("click",async()=>{if(!("Notification"in window)){ $("notifyStatus").textContent="此浏览器不支持系统通知";toast("当前浏览器不支持系统通知；页面内提醒仍可用。");return;}try{const p=await Notification.requestPermission();$("notifyStatus").textContent=p==="granted"?"系统通知已启用（网页需保持打开）":p==="denied"?"系统通知被拒绝，请在浏览器网站设置中允许":"尚未允许系统通知";if(p==="granted"){try{new Notification("NEXUS 提醒测试",{body:"系统通知已正常启用。请在日程中设置提前提醒。",tag:"nexus-notification-test"});toast("已发送测试通知；请检查系统通知区域。");}catch(_){toast("权限已开启，但系统通知发送失败；请检查设备通知设置。");}}else{toast(p==="denied"?"请在浏览器网站设置中允许通知。":"未获得通知权限");}}catch(_){toast("无法请求通知权限");}});
   const infoText='<h3>日程存在哪里？</h3><p>日程默认保存在此浏览器的本地存储中。网站代码是公开的，但本版本不会把日程上传到服务器，也没有账号跨设备同步。请勿在公用设备上输入敏感信息。</p><h3>如何保护和备份数据？</h3><ul><li>定期使用“导出备份”保存 JSON 文件，并妥善保管。</li><li>清除浏览器网站数据、使用无痕窗口或更换设备可能导致数据无法访问。</li><li>导入备份会替换当前日程，请先导出当前数据。</li><li>重复日程的编辑和删除会作用于整个系列；单次例外功能尚未实现。</li></ul><h3>提醒有什么限制？</h3><p>提醒依赖页面运行。关闭网页、浏览器休眠或设备关机时，不能保证准时通知；它不是可靠的后台推送或紧急通知服务。</p><h3>自然语言助手</h3><p>此版本仅对部分中文日期和时间表达生成草稿。请核对日期、时间、地点后再保存。它不会自动修改或删除现有日程，也不调用外部 AI 服务。</p><h3>关于版本</h3><p>这是早期版本。自然语言解析、重复日程单次例外、撤销持久化、完整自动化测试和更完善的无障碍体验会逐步完善。</p>';
   function showInfo(title,content){$("infoTitle").textContent=title;$("infoContent").innerHTML=content;$("infoDialog").showModal();}
@@ -268,5 +350,5 @@
   if ("serviceWorker" in navigator && location.protocol === "https:") {
     window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
   }
-  load();render();checkReminders();setInterval(checkReminders,5000);window.addEventListener("focus",checkReminders);window.addEventListener("pageshow",checkReminders);document.addEventListener("visibilitychange",()=>{if(!document.hidden)checkReminders();});
+  load();render();checkReminders();updateCountdowns();setInterval(checkReminders,5000);setInterval(updateCountdowns,1000);window.addEventListener("focus",()=>{checkReminders();updateCountdowns();});window.addEventListener("pageshow",()=>{checkReminders();updateCountdowns();});document.addEventListener("visibilitychange",()=>{if(!document.hidden){checkReminders();updateCountdowns();}});
 })();
