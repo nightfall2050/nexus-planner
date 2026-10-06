@@ -165,9 +165,12 @@
     if(parsed.action==="edit") {
       const compact = value => String(value || "").replace(/[\s的这条个]/g, "").toLowerCase();
       const rawCompact = compact(raw);
-      const destinationMatch = raw.match(/(?:改到|移到|调整到|更改到|日期改为|日期改成)\s*(下周|下星期|这周|本周|周|星期)([一二三四五六日天1-7])/);
-      let destinationDate = "";
-      if (destinationMatch) {
+      const editMarker = raw.match(/(?:改为|改成|改到|调整到|更改到|设置为|设定为|换成)/);
+      const destinationText = editMarker ? raw.slice(editMarker.index + editMarker[0].length) : "";
+      const destinationParsed = destinationText ? parseTargetDate(destinationText) : null;
+      let destinationDate = destinationParsed && destinationParsed.matched ? destinationParsed.date : "";
+      const destinationMatch = destinationText.match(/(?:改到|移到|调整到|更改到|日期改为|日期改成)?\s*(下周|下星期|这周|本周|周|星期)([一二三四五六日天1-7])/);
+      if (!destinationDate && destinationMatch) {
         const now = new Date(), map = {一:1,二:2,三:3,四:4,五:5,六:6,日:0,天:0,"1":1,"2":2,"3":3,"4":4,"5":5,"6":6,"7":0};
         const offset = map[destinationMatch[2]]===0 ? 6 : map[destinationMatch[2]]-1;
         let monday;
