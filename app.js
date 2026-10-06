@@ -249,7 +249,7 @@
     const running=[],currentKeys=new Set();
     for(const e of occurrenceEvents(todayKey)){
       if(!e.countdownEnabled||!e.time||!e.endTime||e.done)continue;
-      const start=parseDate(todayKey),end=parseDate(e.longTask?(e.endDate||e.date):todayKey),sp=e.time.split(":").map(Number),ep=e.endTime.split(":").map(Number);
+      const start=parseDate(e.longTask?e.date:todayKey),end=parseDate(e.longTask?(e.endDate||e.date):todayKey),sp=e.time.split(":").map(Number),ep=e.endTime.split(":").map(Number);
       start.setHours(sp[0],sp[1],0,0);end.setHours(ep[0],ep[1],0,0);
       if(nowMs>=start.getTime()&&nowMs<end.getTime()){
         running.push({event:e,endMs:end.getTime()});
@@ -551,6 +551,32 @@
   }
   $("eventSearch").addEventListener("input",renderSearchResults);
   $("clearSearchBtn").addEventListener("click",()=>{$("eventSearch").value="";renderSearchResults();$("eventSearch").focus();});
+  $("parseLongTaskBtn").addEventListener("click",()=>{
+    const raw=$("longTaskText").value.trim();
+    if(!raw){toast("请描述长期任务的开始和结束日期");return;}
+    const parsed=parseNatural(raw);
+    const boundary=raw.match(/(?:到|至|结束于|截止于|结束时间为|截止时间为)\s*(.+)$/);
+    const endText=boundary?boundary[1]:"";
+    const endParsed=endText?parseTargetDate(endText):null;
+    const startText=boundary?raw.slice(0,boundary.index):raw;
+    const startParsed=parseTargetDate(startText);
+    if(!parsed||!startParsed.matched||!endParsed||!endParsed.matched){
+      showDraft('<h4>还需要明确开始和结束日期</h4><p>长期任务不会自动猜测日期。请写出两个日期，例如“从今天下午 6 点开始做网站项目，到周五下午 7 点结束”。</p>');
+      return;
+    }
+    const rangeEnd=endParsed.date;
+    if(rangeEnd<startParsed.date){showDraft('<h4>日期顺序需要确认</h4><p>结束日期早于开始日期。请修改描述后重新生成草稿。</p>');return;}
+    showDraft('<h4>长期任务草稿（待确认）</h4><p><strong>事项：</strong>'+esc(parsed.title||"请补充事项名称")+'</p><p><strong>开始：</strong>'+esc(startParsed.date)+' '+esc(parsed.time||"未指定时间")+'</p><p><strong>结束：</strong>'+esc(rangeEnd)+' '+esc(parsed.endTime||"未指定时间")+'</p><p class="notice">系统不会直接保存；请检查日期与时间后再确认。</p><div class="draft-buttons"><button class="secondary-btn" id="discardLongDraft">放弃</button><button class="primary-btn" id="useLongDraft">检查并编辑长期任务</button></div>');
+    $("discardLongDraft").addEventListener("click",()=>{$("draftArea").hidden=true;$("draftArea").innerHTML="";});
+    $("useLongDraft").addEventListener("click",()=>{
+      openEditor({...parsed,id:"",date:startParsed.date,endDate:rangeEnd,longTask:true},true);
+      $("eventTitle").value=parsed.title;$("eventDate").value=startParsed.date;$("eventEndDate").value=rangeEnd;
+      $("eventTime").value=parsed.time||"";$("eventEnd").value=parsed.endTime||"";
+      $("eventCountdownEnabled").checked=!!parsed.countdownEnabled;syncCountdownOption();
+      $("eventReminder").value=String(parsed.reminder||0);$("eventLocation").value=parsed.location||"";
+      $("eventRepeat").value="none";$("eventSpecialReminder").checked=!!parsed.specialReminder;
+    });
+  });
   $("parseBtn").addEventListener("click",()=>{
     const raw=$("quickText").value,parsed=parseNatural(raw);
     if(!parsed){toast("先写下你想安排的事情");return;}
