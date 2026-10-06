@@ -554,6 +554,25 @@
   $("eventSearch").addEventListener("input",renderSearchResults);
   $("clearSearchBtn").addEventListener("click",()=>{$("eventSearch").value="";renderSearchResults();$("eventSearch").focus();});
 
+
+  function openTitleChoice(date,suggestedTitle,onChoose){
+    const key=String(date||"");
+    const list=()=>occurrenceEvents(key).filter(e=>!e.longTask||e.date<=key&&(e.endDate||e.date)>=key);
+    const render=keyword=>{
+      const normalized=String(keyword||"").trim().toLocaleLowerCase();
+      const matches=list().filter(e=>!normalized||e.title.toLocaleLowerCase().includes(normalized));
+      showDraft('<h4>选择项目名称</h4><p>目标日期：'+esc(key)+'。你可以沿用这一天已有的项目名称，也可以新建一个项目。</p><label class="field-label" for="sameDayTitleSearch">搜索当天已有项目</label><div class="search-input-row"><input id="sameDayTitleSearch" type="search" value="'+esc(keyword||"")+'" placeholder="输入项目名称关键词"><button type="button" class="secondary-btn" id="sameDayTitleSearchBtn">搜索</button></div>'+matches.map(e=>'<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.time||"无指定时间")+(e.endTime?' – '+esc(e.endTime):'')+(e.longTask?' · 长期任务':'')+'</p><button type="button" class="secondary-btn" data-title-choice="'+esc(e.id)+'">使用这个项目名</button></div>').join('')+'<div class="draft-buttons"><button type="button" class="secondary-btn" id="createDistinctTitleBtn">新建项目</button><button type="button" class="primary-btn" id="useSuggestedTitleBtn">使用识别名称：'+esc(suggestedTitle||"新项目")+'</button></div>');
+      $("sameDayTitleSearchBtn").addEventListener("click",()=>render($("sameDayTitleSearch").value));
+      $("sameDayTitleSearch").addEventListener("keydown",ev=>{if(ev.key==="Enter"){ev.preventDefault();render($("sameDayTitleSearch").value);}});
+      $("draftArea").querySelectorAll("[data-title-choice]").forEach(btn=>btn.addEventListener("click",()=>{
+        const event=state.events.find(e=>e.id===btn.dataset.titleChoice);if(event)onChoose(event.title);
+      }));
+      $("createDistinctTitleBtn").addEventListener("click",()=>onChoose(""));
+      $("useSuggestedTitleBtn").addEventListener("click",()=>onChoose(suggestedTitle||""));
+    };
+    render("");
+  }
+
   function handleCountdownCommand(raw,longOnly=false){
     if(!/(开启|打开|启用|开始|启动|取消|关闭|停用|禁用|不要).{0,5}倒计时|倒计时.{0,5}(开启|打开|启用|开始|启动|取消|关闭|停用|禁用)/.test(raw))return false;
     const disable=/(取消|关闭|停用|禁用|不要).{0,5}倒计时|倒计时.{0,5}(取消|关闭|停用|禁用)/.test(raw);
@@ -562,7 +581,7 @@
     const dateMatch=parseTargetDate(raw);
     const keyword=raw.replace(/请帮我|请|帮我|把|给|项目|日程|长期任务|开启|打开|启用|开始|启动|取消|关闭|停用|禁用|不要|自动|倒计时|并且|以及|的|一下|改为|设为/g," ").replace(/今天|今日|明天|明日|后天|大后天|下周|下星期|这周|本周|(?:周|星期)[一二三四五六日天1-7]/g," ").replace(/(上午|早上|中午|下午|晚上|傍晚)?\s*\d{1,2}(?:(?:[:：]\d{1,2})|(?:[点时](?:\d{1,2}分?|半)?))?/g," ").replace(/\s+/g," ").trim();
     const date=dateMatch.matched?dateMatch.date:"";
-    let candidates=state.events.filter(e=>(!longOnly||e.longTask)&&(!date||e.longTask?( !date||e.date<=date&&(e.endDate||e.date)>=date):(!date||e.date===date)));
+    let candidates=state.events.filter(e=>(!longOnly||e.longTask)&&(!date||(e.longTask?e.date<=date&&(e.endDate||e.date)>=date:e.date===date)));
     if(keyword.length>1)candidates=candidates.filter(e=>e.title.toLowerCase().includes(keyword.toLowerCase()));
     if(!candidates.length){showDraft('<h4>没有找到目标事项</h4><p>请补充项目名称，或写明日期；系统不会删除或修改任何内容。</p>');return true;}
     showDraft('<h4>'+(enabled?'开启':'取消')+'倒计时</h4><p>请选择要'+(enabled?'开启':'取消')+'倒计时的事项；选择后会打开编辑器，保存后才生效。</p>'+candidates.map(e=>'<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.date)+(e.longTask?' 至 '+esc(e.endDate||e.date):'')+' · '+esc(e.time||'无开始时间')+(e.endTime?' – '+esc(e.endTime):'')+' · '+(e.countdownEnabled?'当前已开启':'当前未开启')+'</p><button type="button" class="secondary-btn" data-countdown-id="'+esc(e.id)+'">选择并'+(enabled?'开启':'取消')+'</button></div>').join(''));
@@ -609,11 +628,14 @@
     showDraft('<h4>长期任务草稿（待确认）</h4><p><strong>事项：</strong>'+esc(title)+'</p><p><strong>开始：</strong>'+esc(startParsed.date)+' '+esc(startTime)+'</p><p><strong>结束：</strong>'+esc(endParsed.date)+' '+esc(endTime)+'</p><p class="notice">请检查日期与时间；确认后才会保存。</p><div class="draft-buttons"><button class="secondary-btn" id="discardLongDraft">放弃</button><button class="primary-btn" id="useLongDraft">检查并编辑长期任务</button></div>');
     $("discardLongDraft").addEventListener("click",()=>{$("draftArea").hidden=true;$("draftArea").innerHTML="";});
     $("useLongDraft").addEventListener("click",()=>{
-      openEditor({id:"",title,date:startParsed.date,endDate:endParsed.date,longTask:true,time:startTime,endTime,reminder,countdownEnabled},true);
-      $("eventTitle").value=title;$("eventDate").value=startParsed.date;$("eventEndDate").value=endParsed.date;
-      $("eventTime").value=startTime;$("eventEnd").value=endTime;
-      $("eventCountdownEnabled").checked=countdownEnabled;syncCountdownOption();
-      $("eventReminder").value=String(reminder);$("eventRepeat").value="none";
+      openTitleChoice(startParsed.date,title,chosenTitle=>{
+        const finalTitle=chosenTitle||title;
+        openEditor({id:"",title:finalTitle,date:startParsed.date,endDate:endParsed.date,longTask:true,time:startTime,endTime,reminder,countdownEnabled},true);
+        $("eventTitle").value=finalTitle;$("eventDate").value=startParsed.date;$("eventEndDate").value=endParsed.date;
+        $("eventTime").value=startTime;$("eventEnd").value=endTime;
+        $("eventCountdownEnabled").checked=countdownEnabled;syncCountdownOption();
+        $("eventReminder").value=String(reminder);$("eventRepeat").value="none";
+      });
     });
   });
   $("parseBtn").addEventListener("click",()=>{
@@ -713,7 +735,7 @@
     }
     showDraft('<h4>待确认草稿</h4><p><strong>事项：</strong>'+esc(parsed.title||"请补充事项名称")+'</p><p><strong>日期：</strong>'+esc(parsed.date)+'</p><p><strong>开始时间：</strong>'+esc(parsed.time||"未识别，请保存前填写")+'</p><p><strong>结束时间：</strong>'+esc(parsed.endTime||"未指定（普通待办）")+'</p><p><strong>地点：</strong>'+esc(parsed.location||"未指定")+'</p><p><strong>重复：</strong>'+esc(repeatLabel(parsed.repeat)||"不重复")+'</p><p><strong>提醒：</strong>'+esc(parsed.reminder?parsed.reminder+" 分钟前":"关闭")+'</p><p class="notice">请检查标题、日期、时间、地点与重复规则后再保存。</p><div class="draft-buttons"><button class="secondary-btn" id="discardDraft">放弃</button><button class="primary-btn" id="useDraft">检查并编辑</button></div>');
     $("discardDraft").addEventListener("click",()=>{$("draftArea").hidden=true;$("draftArea").innerHTML="";});
-    $("useDraft").addEventListener("click",()=>{openEditor({...parsed,id:""});$("eventId").value="";$("eventTitle").value=parsed.title;$("eventDate").value=parsed.date;$("eventTime").value=parsed.time;$("eventEnd").value=parsed.endTime||"";$("eventCountdownEnabled").checked=!!parsed.countdownEnabled;syncCountdownOption();$("eventReminder").value=String(parsed.reminder);$("eventLocation").value=parsed.location;$("eventRepeat").value=parsed.repeat;$("eventSpecialReminder").checked=!!parsed.specialReminder;});
+    $("useDraft").addEventListener("click",()=>{openTitleChoice(parsed.date,parsed.title,chosenTitle=>{const finalTitle=chosenTitle||parsed.title;openEditor({...parsed,id:"",title:finalTitle});$("eventId").value="";$("eventTitle").value=finalTitle;$("eventDate").value=parsed.date;$("eventTime").value=parsed.time;$("eventEnd").value=parsed.endTime||"";$("eventCountdownEnabled").checked=!!parsed.countdownEnabled;syncCountdownOption();$("eventReminder").value=String(parsed.reminder);$("eventLocation").value=parsed.location;$("eventRepeat").value=parsed.repeat;$("eventSpecialReminder").checked=!!parsed.specialReminder;});});
   });
   if ("serviceWorker" in navigator && location.protocol === "https:") {
     window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
