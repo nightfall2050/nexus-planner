@@ -496,7 +496,7 @@
       .replace(/(?:地点|位置)\s*(?:(?:设置|设定|改|调整|更改)\s*(?:为|成|到)|(?:是|为|在|设为|：|:))?\s*[^，,。；;]+/g," ").replace(/在\s*[^，,。；;]+?\s*(?=开|上|参加|进行|学习|吃饭|运动|健身|看医生|复诊|提前|$)/g," ").replace(/(?:从|到|至|开始|结束(?:时间)?|截止(?:时间)?)/g," ")
       .replace(/[，,。；;]/g," ").replace(/\s+/g," ").trim();
     title=title.replace(/^(的|一下|下|上|开|做|把|参加|进行)\s*/,"").replace(/(这个日程|这条日程|这个安排|的日程|的课)$/,"").trim();
-    return {action:deleteIntent?"delete":editIntent?"edit":"create",title,date:target.date,dateRange:range||{start:target.date,end:target.date,label:target.date},time,endTime,reminder:rm?Math.min(1440,+rm[1]):0,location,specialReminder:/(特别提醒|重点提醒|星标|标星)/.test(raw)&&!/(取消|关闭|不要).{0,4}(特别提醒|重点提醒|星标)/.test(raw),repeat,countdownEnabled:!!endTime&&/(自动倒计时|开始时倒计时|开始自动倒计时)/.test(raw),raw};
+    return {action:deleteIntent?"delete":editIntent?"edit":"create",title,date:target.date,dateRange:range||{start:target.date,end:target.date,label:target.date},time,endTime,reminder:rm?Math.min(1440,+rm[1]):0,location,specialReminder:/(特别提醒|重点提醒|星标|标星)/.test(raw)&&!/(取消|关闭|不要).{0,4}(特别提醒|重点提醒|星标)/.test(raw),repeat,countdownEnabled:!!endTime&&/(自动倒计时|开始时倒计时|开始自动倒计时|开启.{0,8}倒计时|打开.{0,8}倒计时|启用.{0,8}倒计时|倒计时.{0,8}(开启|打开|启用|开始))/.test(raw),raw};
   }
   function showDraft(html) { const area=$("draftArea"); area.hidden=false; area.innerHTML=html; }
   function safeDeleteOccurrence(eventId,key) {
@@ -613,7 +613,7 @@
         openEditor(mode==="single"?{...e,...(e.overrides&&e.overrides[occurrenceDate]||{}),date:occurrenceDate}:e);
         if(!$("eventDialog").open)return;
         if(parsed.time)$("eventTime").value=parsed.time;
-        if(parsed.endTime){$("eventEnd").value=parsed.endTime;syncCountdownOption();}
+        if(parsed.endTime){$("eventEnd").value=parsed.endTime;syncCountdownOption();}if(parsed.countdownEnabled&&parsed.endTime){$("eventCountdownEnabled").checked=true;}
         if(destinationDate)$("eventDate").value=destinationDate;
         if(locationChange)$("eventLocation").value=locationChange[1].trim().replace(/^(为|成|到)\s*/,"");
         if(renameMatch)$("eventTitle").value=renameMatch[1].trim();
