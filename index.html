@@ -7,7 +7,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <meta name="description" content="NEXUS Planner — 隐私优先的个人日程与智能日历。">
   <title>NEXUS Planner — Personal Command Center</title>
-  <link rel="stylesheet" href="./styles.css?v=11">
+  <link rel="stylesheet" href="./styles.css?v=12">
   <script>
     window.addEventListener("error", function (event) {
       try {
@@ -38,13 +38,13 @@
       } catch (_) {}
     });
   </script>
-  <script src="./app.js?v=18" defer></script>
+  <script src="./app.js?v=19" defer></script>
 </head>
 <body>
   <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
   <header class="topbar">
     <a class="brand" href="#" aria-label="NEXUS Planner 首页"><span class="brand-mark">N</span><span>NEXUS<span class="brand-muted"> / PLANNER</span></span></a>
-    <div class="topbar-right"><span class="privacy-chip"><i></i> 本地隐私模式</span><button class="icon-button" id="settingsBtn" aria-label="设置" title="设置">⚙</button></div>
+    <div class="topbar-right"><div class="interface-switch" role="group" aria-label="界面模式"><button type="button" id="studyModeBtn" class="interface-btn">学习工作台</button><button type="button" id="classicModeBtn" class="interface-btn">传统日历</button></div><span class="privacy-chip"><i></i> 本地隐私模式</span><button class="icon-button" id="settingsBtn" aria-label="设置" title="设置">⚙</button></div>
   </header>
   <main class="shell">
     <section class="hero">
@@ -55,6 +55,18 @@
       <div class="view-switch"><button class="view-btn active" data-view="month">月视图</button><button class="view-btn" data-view="day">单日</button></div>
       <div class="month-nav"><button id="prevBtn" class="icon-button" aria-label="上一个">‹</button><h2 id="periodTitle">—</h2><button id="nextBtn" class="icon-button" aria-label="下一个">›</button><button id="todayBtn" class="today-btn">今天</button></div>
       <button class="primary-btn" id="addBtn"><span>＋</span> 新建日程</button>
+    </section>
+    <section id="studyDesk" class="study-desk" hidden aria-labelledby="studyDeskHeading">
+      <div class="study-welcome"><div><p class="eyebrow">NEXUS / STUDY DESK</p><h2 id="studyDeskHeading">今天学什么？</h2><p class="muted">先完成重要的，再考虑更多的。</p></div><button type="button" id="studyAddBtn" class="primary-btn">＋ 新建学习任务</button></div>
+      <div class="study-stats">
+        <article class="study-stat panel"><span class="muted small">待完成学习任务</span><strong id="studyTaskCount">0</strong><span class="muted tiny">今日安排</span></article>
+        <article class="study-stat panel"><span class="muted small">计划学习时间</span><strong id="studyMinutes">0 分钟</strong><span class="muted tiny">按任务预计时长统计</span></article>
+        <article class="study-stat panel"><span class="muted small">今日完成</span><strong id="studyCompletion">0 / 0</strong><div class="study-progress-track"><span id="studyProgressBar"></span></div></article>
+      </div>
+      <div class="study-content-grid">
+        <section class="panel study-main-panel"><div class="panel-heading"><div><p class="eyebrow">YOUR NEXT STEP</p><h3>下一步建议</h3></div><span class="study-spark">✦</span></div><div id="studyRecommendation" class="study-recommendation"></div><div class="panel-heading study-list-heading"><div><p class="eyebrow">TODAY'S STUDY PLAN</p><h3>今日学习清单</h3></div><span id="studyListDate" class="date-badge"></span></div><div id="studyTaskList" class="study-task-list"></div></section>
+        <aside class="panel study-side-panel"><div class="panel-heading"><div><p class="eyebrow">PLAN REALITY CHECK</p><h3>计划现实度</h3></div><span class="focus-icon">◈</span></div><div id="studyRealityCheck" class="study-reality-check"></div><div id="studyOverdueWrap" class="study-overdue-wrap" hidden><div class="panel-heading"><div><p class="eyebrow">NEEDS ATTENTION</p><h3>待处理的逾期任务</h3></div></div><div id="studyOverdueList" class="study-task-list"></div></div><p class="muted tiny study-privacy-note">学习任务与统计仅保存在当前浏览器中。预计时长不代表实际学习时长。</p></aside>
+      </div>
     </section>
     <section class="panel search-panel" aria-label="搜索日程">
       <div class="panel-heading"><div><p class="eyebrow">FIND YOUR PLANS</p><h3>搜索日程</h3></div><span class="search-symbol" aria-hidden="true">⌕</span></div>
@@ -81,7 +93,7 @@
     </section>
     <footer><span>© NEXUS PLANNER</span><span>DESIGNED FOR CLARITY · BUILT FOR PRIVACY</span><button id="privacyBtn" class="footer-link">隐私与使用说明</button></footer>
   </main>
-  <dialog id="eventDialog" class="modal"><form id="eventForm" method="dialog"><div class="modal-heading"><div><p class="eyebrow">CREATE AN EVENT</p><h2 id="dialogTitle">新建日程</h2></div><button class="icon-button" type="button" id="closeDialog" aria-label="关闭">×</button></div><input type="hidden" id="eventId"><p id="editScopeHint" class="notice" hidden></p><label class="field-label" for="eventTitle">事项名称 *</label><input id="eventTitle" required maxlength="120" placeholder="例如：项目讨论会"><div class="form-grid"><div><label class="field-label" for="eventDate">日期 *</label><input id="eventDate" type="date" required></div><div><label class="field-label" for="eventTime">开始时间</label><input id="eventTime" type="time"></div><div><label class="field-label" for="eventEnd">结束时间</label><input id="eventEnd" type="time"><label id="countdownOption" class="countdown-toggle" hidden><input id="eventCountdownEnabled" type="checkbox"> 开始时自动开启倒计时</label></div><div><label class="field-label" for="eventReminder">提前提醒</label><select id="eventReminder"><option value="0">不提醒</option><option value="5">5 分钟</option><option value="10">10 分钟</option><option value="15">15 分钟</option><option value="30">30 分钟</option><option value="60">1 小时</option></select></div></div><label class="field-label" for="eventLocation">地点（可选）</label><input id="eventLocation" maxlength="160" placeholder="线上 / 会议室 / 地址"><label class="field-label" for="eventNotes">备注（可选）</label><textarea id="eventNotes" rows="2" maxlength="1000" placeholder="补充信息"></textarea><label class="field-label" for="eventRepeat">重复规则</label><select id="eventRepeat"><option value="none">不重复</option><option value="daily">每天</option><option value="weekly">每周（同一星期）</option><option value="weekdays">每个工作日</option><option value="monthly">每月同日</option></select><label class="special-reminder-toggle" for="eventSpecialReminder"><input id="eventSpecialReminder" type="checkbox"><span class="special-star">★</span><span class="special-reminder-copy"><strong>设为特别提醒</strong><small>每次打开网站时出现在特别提醒清单</small></span></label><p class="notice">没有结束时间时按普通待办处理；设置结束时间后可选择是否在开始时自动开启倒计时。重复日程编辑会作用于整个系列，建议先导出备份。</p><div class="modal-actions"><button type="button" class="secondary-btn" id="cancelDialog">取消</button><button type="submit" class="primary-btn">保存日程</button></div></form></dialog>
+  <dialog id="eventDialog" class="modal"><form id="eventForm" method="dialog"><div class="modal-heading"><div><p class="eyebrow">CREATE AN EVENT</p><h2 id="dialogTitle">新建日程</h2></div><button class="icon-button" type="button" id="closeDialog" aria-label="关闭">×</button></div><input type="hidden" id="eventId"><p id="editScopeHint" class="notice" hidden></p><label class="field-label" for="eventTitle">事项名称 *</label><input id="eventTitle" required maxlength="120" placeholder="例如：项目讨论会"><div class="form-grid"><div><label class="field-label" for="eventDate">日期 *</label><input id="eventDate" type="date" required></div><div><label class="field-label" for="eventTime">开始时间</label><input id="eventTime" type="time"></div><div><label class="field-label" for="eventEnd">结束时间</label><input id="eventEnd" type="time"><label id="countdownOption" class="countdown-toggle" hidden><input id="eventCountdownEnabled" type="checkbox"> 开始时自动开启倒计时</label></div><div><label class="field-label" for="eventReminder">提前提醒</label><select id="eventReminder"><option value="0">不提醒</option><option value="5">5 分钟</option><option value="10">10 分钟</option><option value="15">15 分钟</option><option value="30">30 分钟</option><option value="60">1 小时</option></select></div></div><label class="field-label" for="eventLocation">地点（可选）</label><input id="eventLocation" maxlength="160" placeholder="线上 / 会议室 / 地址"><label class="field-label" for="eventNotes">备注（可选）</label><textarea id="eventNotes" rows="2" maxlength="1000" placeholder="补充信息"></textarea><label class="study-enable-toggle" for="eventStudyEnabled"><input id="eventStudyEnabled" type="checkbox"><span><strong>作为学习任务管理</strong><small>在学习工作台中显示，可设置科目、预计时长和优先级。</small></span></label><div id="eventStudyFields" class="study-editor-fields" hidden><div><label class="field-label" for="eventStudySubject">科目 / 学习领域</label><input id="eventStudySubject" maxlength="80" placeholder="例如：数学、英语、编程"></div><div class="form-grid study-form-grid"><div><label class="field-label" for="eventStudyMinutes">预计时长（分钟）</label><input id="eventStudyMinutes" type="number" min="5" max="1440" step="5" value="30"></div><div><label class="field-label" for="eventStudyPriority">优先级</label><select id="eventStudyPriority"><option value="1">普通</option><option value="2">较高</option><option value="3">重要</option></select></div></div></div><label class="field-label" for="eventRepeat">重复规则</label><select id="eventRepeat"><option value="none">不重复</option><option value="daily">每天</option><option value="weekly">每周（同一星期）</option><option value="weekdays">每个工作日</option><option value="monthly">每月同日</option></select><label class="special-reminder-toggle" for="eventSpecialReminder"><input id="eventSpecialReminder" type="checkbox"><span class="special-star">★</span><span class="special-reminder-copy"><strong>设为特别提醒</strong><small>每次打开网站时出现在特别提醒清单</small></span></label><p class="notice">没有结束时间时按普通待办处理；设置结束时间后可选择是否在开始时自动开启倒计时。重复日程编辑会作用于整个系列，建议先导出备份。</p><div class="modal-actions"><button type="button" class="secondary-btn" id="cancelDialog">取消</button><button type="submit" class="primary-btn">保存日程</button></div></form></dialog>
   <dialog id="infoDialog" class="modal info-modal"><div class="modal-heading"><div><p class="eyebrow">PRIVACY FIRST</p><h2 id="infoTitle">隐私与使用说明</h2></div><button class="icon-button" type="button" id="closeInfo" aria-label="关闭">×</button></div><div id="infoContent" class="info-content"></div><div class="modal-actions"><button class="primary-btn" id="okInfo">知道了</button></div></dialog>
   <section id="specialSummaryOverlay" class="summary-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="specialSummaryHeading">
     <div class="summary-dialog">
