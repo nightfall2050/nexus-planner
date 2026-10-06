@@ -207,14 +207,14 @@
   }
   function parseNatural(text) {
     const raw=text.trim(); if(!raw)return null;
-    const editMarker=raw.match(/(?:修改为|修改成|修改到|改为|改成|改到|调整到|更改到|设置为|设定为|换成)/);
+    const editMarker=raw.match(/(?:修改为|修改成|修改到|调整为|调整成|调整到|更改为|更改成|更改到|设置为|设置成|设定为|设定成|改为|改成|改到|换成)/);
     const isEdit=/(修改|改成|改为|调整|更改|设置|设定|把.+换成|把.+改到|把.+移到|把.+日期改)/.test(raw);
     const sourceText=isEdit&&editMarker?raw.slice(0,editMarker.index):raw;
     const target=parseTargetDate(sourceText);
     const timeText=isEdit&&editMarker?raw.slice(editMarker.index+editMarker[0].length):raw;
     const timeParts=parseTimeRange(timeText);
     const time=timeParts.time, endTime=timeParts.endTime;
-    const locMatch=raw.match(/(?:地点|位置)\s*(?:是|为|：|:)?\s*([^，,。；;]+)/) || raw.match(/在\s*([^，,。；;]+?)\s*(?=开|上|参加|进行|学习|吃饭|运动|健身|看医生|复诊|提前|$)/);
+    const locMatch=raw.match(/(?:地点|位置)\s*(?:(?:设置|设定|改|调整|更改)\s*(?:为|成|到)|(?:是|为|在|设为|：|:))?\s*([^，,。；;]+)/) || raw.match(/在\s*([^，,。；;]+?)\s*(?=开|上|参加|进行|学习|吃饭|运动|健身|看医生|复诊|提前|$)/);
     let location=locMatch?locMatch[1].trim():"";
     if(location && /^(明天|今天|后天|大后天|下周|本周|这周|周[一二三四五六日天]|星期[一二三四五六日天]|上午|下午|晚上|早上|中午|傍晚)/.test(location)) location="";
     const rm=raw.match(/提前\s*(\d+)\s*分钟?提醒/);
@@ -225,7 +225,7 @@
       .replace(/请帮我|请|帮我|安排一下|安排|新增|添加|创建|新建|删除|删掉|取消|移除|不要了|不再安排|去掉|修改|调整|更改|把|下周|下星期|这周|本周|今天|今日|明天|明日|后天|大后天|20\d{2}[年./-]\d{1,2}[月./-]\d{1,2}日?|\d{1,2}月\d{1,2}日?|(?:周|星期)[一二三四五六日天]/g," ")
       .replace(/提前\s*\d+\s*分钟?提醒/g," ")
       .replace(/(上午|早上|中午|下午|晚上|傍晚)?\s*\d{1,2}(?:(?:[:：]\d{1,2})|(?:[点时](?:\d{1,2}分?|半)?))?/g," ")
-      .replace(/(?:地点|位置)\s*(?:是|为|：|:)?\s*[^，,。；;]+/g," ").replace(/在\s*[^，,。；;]+?\s*(?=开|上|参加|进行|学习|吃饭|运动|健身|看医生|复诊|提前|$)/g," ").replace(/(?:从|到|至|开始|结束(?:时间)?|截止(?:时间)?)/g," ")
+      .replace(/(?:地点|位置)\s*(?:(?:设置|设定|改|调整|更改)\s*(?:为|成|到)|(?:是|为|在|设为|：|:))?\s*[^，,。；;]+/g," ").replace(/在\s*[^，,。；;]+?\s*(?=开|上|参加|进行|学习|吃饭|运动|健身|看医生|复诊|提前|$)/g," ").replace(/(?:从|到|至|开始|结束(?:时间)?|截止(?:时间)?)/g," ")
       .replace(/[，,。；;]/g," ").replace(/\s+/g," ").trim();
     title=title.replace(/^(的|一下|下|上|开|做|把|参加|进行)\s*/,"").replace(/(这个日程|这条日程|这个安排|的日程|的课)$/,"").trim();
     return {action:deleteIntent?"delete":editIntent?"edit":"create",title,date:target.date,time,endTime,reminder:rm?Math.min(1440,+rm[1]):0,location,repeat,countdownEnabled:!!endTime&&/(自动倒计时|开始时倒计时|开始自动倒计时)/.test(raw),raw};
@@ -302,7 +302,7 @@
     }
     if(parsed.action==="edit") {
       const compact = value => String(value || "").toLocaleLowerCase().replace(/[\s的这条个]/g, "");
-      const editMarker = raw.match(/(?:修改为|修改成|修改到|改为|改成|改到|调整到|更改到|设置为|设定为|换成)/);
+      const editMarker = raw.match(/(?:修改为|修改成|修改到|调整为|调整成|调整到|更改为|更改成|更改到|设置为|设置成|设定为|设定成|改为|改成|改到|换成)/);
       const destinationText = editMarker ? raw.slice(editMarker.index + editMarker[0].length) : "";
       const destinationParsed = destinationText ? parseTargetDate(destinationText) : null;
       let destinationDate = destinationParsed && destinationParsed.matched ? destinationParsed.date : "";
