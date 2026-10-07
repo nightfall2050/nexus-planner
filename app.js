@@ -467,7 +467,7 @@
   function editEvent(eventId,occurrenceDate=state.selected){
     const e=state.events.find(x=>x.id===eventId);if(!e)return;
     const key=occurrenceDate||e.date;
-    const sameNameIds=state.events.filter(x=>compact(x.title)===compact(e.title)).map(x=>x.id);
+    const normalizeTitle=x=>String(x||"").trim().replace(/\\s+/g," ").toLowerCase();const sameNameIds=state.events.filter(x=>normalizeTitle(x.title)===normalizeTitle(e.title)).map(x=>x.id);
     const hasRepeat=e.repeat!=="none";
     const hasSameNameRepeat=sameNameIds.some(id=>{const x=state.events.find(y=>y.id===id);return x&&x.repeat!=="none";});
     if(hasRepeat||hasSameNameRepeat){
