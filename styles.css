@@ -148,3 +148,26 @@
 .reality-good{background:#10302666;border-color:#63ddb133}
 .reality-warning{background:#442b1d66;border-color:#ffb36b66}
 @media(max-width:760px){.today-command-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.today-focus-layout{grid-template-columns:1fr}.today-command{padding:15px}}
+
+/* Focus execution and safe plan recovery */
+.focus-dialog,.recovery-dialog{width:min(calc(100% - 24px),620px)}
+.focus-session-content{padding:10px 24px 24px;text-align:center}
+.focus-label{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.focus-session-content h3{font-size:21px;line-height:1.4;overflow-wrap:anywhere;margin:8px 0}
+.focus-timer-display{font-size:clamp(54px,12vw,84px);font-weight:750;letter-spacing:.06em;font-variant-numeric:tabular-nums;margin:20px 0 8px;color:#d6e7ff}
+.focus-session-status{font-size:12px;color:var(--muted);min-height:18px}
+.focus-progress-track{height:6px;border-radius:9px;background:#24344c;overflow:hidden;margin:20px 0}
+.focus-progress-track span{display:block;width:0;height:100%;background:linear-gradient(90deg,#63a4ff,#77e1c2);transition:width .3s}
+.focus-controls{display:flex;justify-content:center;gap:8px;flex-wrap:wrap;margin:20px 0 12px}
+.focus-controls button{min-width:105px}
+.recovery-task-list{display:flex;flex-direction:column;gap:8px;margin:16px 0}
+.recovery-task-option{display:flex;align-items:flex-start;gap:11px;padding:12px;border:1px solid var(--line);border-radius:10px;background:#111c2f;cursor:pointer}
+.recovery-task-option input{margin-top:4px;accent-color:#83b6ff}
+.recovery-task-option span{display:flex;flex-direction:column;gap:4px;min-width:0}
+.recovery-task-option strong{font-size:12px;overflow-wrap:anywhere}
+.recovery-task-option small{font-size:10px;color:var(--muted);line-height:1.5}
+.recovery-preview{padding:14px;border:1px solid #75aaff55;border-radius:11px;background:#10213a;margin:14px 0}
+.recovery-preview strong{font-size:13px}
+.recovery-preview p{font-size:11px;line-height:1.6;color:#d0def2;margin:8px 0 0;overflow-wrap:anywhere}
+.recovery-actions{flex-wrap:wrap}
+@media(max-width:560px){.focus-session-content{padding:8px 14px 18px}.focus-controls button{flex:1;min-width:90px}.recovery-actions button{flex:1}}
