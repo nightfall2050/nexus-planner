@@ -635,11 +635,16 @@
     });
     const startTime=parseTimeRange(normalizeChineseHour(startText)).time;
     const endTime=parseTimeRange(normalizeChineseHour(endText)).time;
-    let title=endText;
-    title=title.replace(/^(?:明天|明日|后天|大后天|今天|今日|下周|下星期|这周|本周|周[一二三四五六日天]|星期[一二三四五六日天])?/,"")
+    const cleanTaskTitle = value => String(value||"")
+      .replace(/(?:20\d{2}[年./-]\d{1,2}[月./-]\d{1,2}日?|\d{1,2}月\d{1,2}日?|大后天|后天|明天|明日|今天|今日|下周|下星期|这周|本周|周[一二三四五六日天]|星期[一二三四五六日天])/g," ")
       .replace(/(?:上午|早上|中午|下午|晚上|傍晚)?\s*[0-9一二三四五六七八九十两]{1,3}(?:[:：][0-9]{1,2}|点(?:半|[0-9]{1,2}分?)?|时(?:半|[0-9]{1,2}分?)?)/g," ")
-      .replace(/^(?:完成|做完|结束|截止|开始|开始做|去完成|要完成)\s*/,"")
-      .replace(/[，,。；;]/g," ").replace(/\s+/g," ").trim();
+      .replace(/^(?:从|把|请帮我|请|帮我|给我|将|给)\s*/,"")
+      .replace(/(?:的)?(?:时间|日期|开始时间|结束时间)?\s*(?:改为|改成|改到|调整为|调整成|调整到|更改为|更改成|更改到|修改为|修改成|修改到|设为|设置为|设置成|设定为|设定成)?/g," ")
+      .replace(/\b(?:到|至|完成|做完|结束|截止|开始|开始做|去完成|要完成)\b/g," ")
+      .replace(/[，,。；;：:]/g," ").replace(/\s+/g," ").trim();
+    let title=cleanTaskTitle(raw);
+    if(!title||/^(?:时间|日期|任务|长期任务)$/.test(title))title=cleanTaskTitle(endText);
+    if(!title)title="长期任务";
     if(!startParsed.matched||!endParsed.matched||!startTime||!endTime){
       showDraft('<h4>还需要明确开始和结束日期/时间</h4><p>例如：“从今天早上9点到明天下午5点完成博约杯备考”。支持“下午五点”这样的中文数字时间。</p>');
       return;
