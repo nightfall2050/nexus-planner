@@ -38,7 +38,7 @@
       } catch (_) {}
     });
   </script>
-  <script src="./app.js?v=24" defer></script>
+  <script src="./app.js?v=25" defer></script>
 </head>
 <body>
   <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
@@ -58,6 +58,7 @@
     </section>
     <section id="studyDesk" class="study-desk" hidden aria-labelledby="studyDeskHeading">
       <div class="study-welcome"><div><p class="eyebrow">NEXUS / TODAY</p><h2 id="studyDeskHeading">今天，重要的事先做。</h2><p class="muted">先看清今天，再决定下一步。学习、工作与个人日程在这里汇总。</p></div><button type="button" id="studyAddBtn" class="primary-btn">＋ 新建学习任务</button></div>
+      <section class="study-momentum panel" aria-labelledby="studyMomentumHeading"><div class="study-momentum-head"><div><p class="eyebrow">LEARNING RHYTHM</p><h3 id="studyMomentumHeading">今天的学习节奏</h3><p id="studyMomentumMessage" class="muted small">从第一轮专注开始，节奏会随着你的实际执行更新。</p></div><div class="study-streak" id="studyStreak"><span>连续完成</span><strong>0 天</strong></div></div><div class="study-momentum-grid"><article class="momentum-metric"><span>计划</span><strong id="studyPlanMinutes">0 分钟</strong><small>今日学习任务</small></article><article class="momentum-metric"><span>实际专注</span><strong id="studyActualMinutes">0 分钟</strong><small>已结束的专注会话</small></article><article class="momentum-metric"><span>完成率</span><strong id="studyDoneRate">0%</strong><small>今日学习任务</small></article><article class="momentum-metric"><span>下一步</span><strong id="studyMomentumNext">—</strong><small>建议立即行动</small></article></div><div class="study-rhythm-track"><span id="studyRhythmBar"></span></div></section>
       <section class="today-command panel" aria-labelledby="todayCommandHeading">
         <div class="panel-heading"><div><p class="eyebrow">YOUR DAY AT A GLANCE</p><h3 id="todayCommandHeading">今日行动概览</h3></div><span id="todayDateLabel" class="date-badge"></span></div>
         <div class="today-command-stats">
