@@ -120,16 +120,45 @@
   $("closeFocusDialog").addEventListener("click",()=>$("focusDialog").close());
   $("focusStartBtn").addEventListener("click",()=>{if(!focusSession)return;focusSession.startedAt=Date.now();saveFocusSession();updateFocusDisplay();if(focusTick)clearInterval(focusTick);focusTick=setInterval(()=>{if(!focusSession)return;updateFocusDisplay();if(focusElapsed()>=focusSession.durationMs){focusSession.elapsedMs=focusElapsed();focusSession.startedAt=0;saveFocusSession();updateFocusDisplay();clearInterval(focusTick);focusTick=null;toast("专注目标时长已到。你可以休息或结束会话。");}},1000);});
   $("focusPauseBtn").addEventListener("click",()=>{if(!focusSession||!focusSession.startedAt)return;focusSession.elapsedMs=focusElapsed();focusSession.startedAt=0;saveFocusSession();if(focusTick)clearInterval(focusTick);focusTick=null;updateFocusDisplay();});
-  $("focusFinishBtn").addEventListener("click",()=>{if(!focusSession)return;const s=focusSession,mins=Math.floor(focusElapsed()/60000);const markDone=s.repeat==="none"?confirm("本次专注已记录约 "+mins+" 分钟。是否同时将“"+s.title+"”标记为完成？\n选择“确定”标记完成；选择“取消”仅结束计时。"):false;if(focusTick)clearInterval(focusTick);focusTick=null;focusSession=null;saveFocusSession();$("focusDialog").close();if(markDone)toggleDone(s.id,s.occurrenceDate);else{render();toast(s.repeat==="none"?"专注会话已结束，任务仍保持未完成。":"专注会话已结束；为避免误改整个重复系列，未自动修改日程完成状态。");}});
+  $("focusFinishBtn").addEventListener("click",()=>{if(!focusSession)return;const s=focusSession,mins=Math.floor(focusElapsed()/60000);const focusHistory=readLocalList(FOCUS_HISTORY_KEY);focusHistory.push({id:s.id,title:s.title,minutes:mins,at:Date.now(),date:dateKey(new Date())});writeLocalList(FOCUS_HISTORY_KEY,focusHistory.filter(x=>x.at>Date.now()-180*86400000).slice(-3000));const markDone=s.repeat==="none"?confirm("本次专注已记录约 "+mins+" 分钟。是否同时将“"+s.title+"”标记为完成？\n选择“确定”标记完成；选择“取消”仅结束计时。"):false;if(focusTick)clearInterval(focusTick);focusTick=null;focusSession=null;saveFocusSession();$("focusDialog").close();if(markDone)toggleDone(s.id,s.occurrenceDate);else{render();toast(s.repeat==="none"?"专注会话已结束，任务仍保持未完成。":"专注会话已结束；为避免误改整个重复系列，未自动修改日程完成状态。");}});
   function openRecovery(){const today=dateKey(new Date()),tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);const target=dateKey(tomorrow),candidates=occurrenceEvents(today).filter(e=>!e.done&&!e.time&&!e.longTask&&(e.repeat||"none")==="none"&&e.date===today);const list=$("recoveryTaskList");list.innerHTML="";recoveryProposal=[];if(!candidates.length)list.innerHTML='<div class="today-empty">今天没有符合安全改期条件的待办。固定时段、重复日程和长期任务不会在这里批量移动。</div>';candidates.forEach(e=>{const label=document.createElement("label");label.className="recovery-task-option";const cb=document.createElement("input");cb.type="checkbox";cb.value=e.id;cb.checked=true;const copy=document.createElement("span");copy.innerHTML="<strong>"+esc(e.title)+"</strong><small>"+esc(e.date)+" · 无固定时间 · 改到 "+esc(target)+"（不指定新时间）</small>";label.append(cb,copy);list.append(label);});$("recoveryPreview").hidden=true;$("recoveryPreview").innerHTML="";$("recoveryApplyBtn").disabled=true;$("recoveryPreviewBtn").disabled=!candidates.length;$("recoveryDialog").showModal();}
   $("todayRecoveryBtn").addEventListener("click",openRecovery);
   $("closeRecoveryDialog").addEventListener("click",()=>$("recoveryDialog").close());
   $("recoveryPreviewBtn").addEventListener("click",()=>{const ids=[...$("recoveryTaskList").querySelectorAll('input[type="checkbox"]:checked')].map(cb=>cb.value),tomorrow=new Date();tomorrow.setDate(tomorrow.getDate()+1);const target=dateKey(tomorrow);recoveryProposal=ids.map(id=>state.events.find(e=>e.id===id)).filter(e=>e&&(e.repeat||"none")==="none"&&!e.done&&!e.time&&!e.longTask&&e.date===dateKey(new Date())).map(e=>({id:e.id,title:e.title,from:e.date,to:target}));const preview=$("recoveryPreview");preview.hidden=false;preview.innerHTML="";if(!recoveryProposal.length){preview.textContent="没有可应用的改期项目。请重新选择任务。";$("recoveryApplyBtn").disabled=true;return;}const heading=document.createElement("strong");heading.textContent="改期预览 · "+recoveryProposal.length+" 项";preview.append(heading);recoveryProposal.forEach(p=>{const row=document.createElement("p");row.textContent=p.title+"： "+p.from+" → "+p.to+"（保持为无固定时间的待办）";preview.append(row);});$("recoveryApplyBtn").disabled=false;});
   $("recoveryApplyBtn").addEventListener("click",()=>{if(!recoveryProposal.length)return;if(!confirm("即将把预览中的 "+recoveryProposal.length+" 项任务移到明天，且不设置新时间。固定日程不会改变。确认应用？"))return;const valid=recoveryProposal.filter(p=>{const e=state.events.find(x=>x.id===p.id);return e&&(e.repeat||"none")==="none"&&!e.done&&!e.time&&!e.longTask&&e.date===p.from;});if(!valid.length){toast("任务状态已变化，没有应用改期。");$("recoveryDialog").close();return;}snapshot();valid.forEach(p=>{const e=state.events.find(x=>x.id===p.id);if(e)e.date=p.to;});try{save();$("recoveryDialog").close();recoveryProposal=[];render();toast("已按预览改期 "+valid.length+" 项任务。可使用撤销恢复。");}catch(e){toast("保存失败，请检查浏览器存储空间。");}});
+  const COMPLETION_HISTORY_KEY="nexus-planner-completion-history-v1";
+  const FOCUS_HISTORY_KEY="nexus-planner-focus-history-v1";
+  const WEEKLY_REFLECTION_KEY="nexus-planner-weekly-reflection-v1";
+  function readLocalList(key){try{const x=JSON.parse(localStorage.getItem(key)||"[]");return Array.isArray(x)?x:[];}catch(e){return [];}}
+  function writeLocalList(key,items){try{localStorage.setItem(key,JSON.stringify(items));return true;}catch(e){toast("本地记录保存失败，请检查浏览器存储空间。");return false;}}
+  function recordCompletion(e,done,key){if(!e)return;const list=readLocalList(COMPLETION_HISTORY_KEY);list.push({id:e.id,title:e.title,date:key||dateKey(new Date()),done:!!done,at:Date.now()});writeLocalList(COMPLETION_HISTORY_KEY,list.filter(x=>x.at>Date.now()-180*86400000).slice(-3000));}
+  function mondayOf(date){const d=new Date(date.getFullYear(),date.getMonth(),date.getDate());d.setDate(d.getDate()-((d.getDay()+6)%7));return d;}
+  function weekKey(date){return dateKey(mondayOf(date));}
+  function renderWeeklyReview(){
+    const now=new Date(),today=dateKey(now),start=mondayOf(now),startKey=dateKey(start),days=[];
+    for(let i=0;i<7;i++){const d=new Date(start);d.setDate(start.getDate()+i);days.push(dateKey(d));}
+    const completed=readLocalList(COMPLETION_HISTORY_KEY).filter(x=>x&&x.done&&typeof x.at==="number"&&x.at>=now.getTime()-7*86400000&&x.at<=now.getTime());
+    const focus=readLocalList(FOCUS_HISTORY_KEY).filter(x=>x&&typeof x.at==="number"&&x.at>=now.getTime()-7*86400000&&x.at<=now.getTime());
+    const counts=days.map(day=>completed.filter(x=>x.date===day).length),max=Math.max(1,...counts);
+    $("weeklyReviewRange").textContent=days[0].slice(5)+" — "+days[6].slice(5);
+    $("weeklyDoneCount").textContent=String(completed.length);
+    const focusMinutes=focus.reduce((sum,x)=>sum+Math.max(0,Number(x.minutes)||0),0);
+    $("weeklyFocusTime").textContent=focusMinutes>=60?Math.floor(focusMinutes/60)+"小时"+(focusMinutes%60?" "+focusMinutes%60+"分":""):focusMinutes+" 分钟";
+    $("weeklyActiveDays").textContent=String(counts.filter(n=>n>0).length)+" / 7";
+    const chart=$("weeklyReviewChart");chart.innerHTML="";
+    days.forEach((day,i)=>{const col=document.createElement("div");col.className="weekly-bar-column";const value=document.createElement("span");value.className="weekly-bar-value";value.textContent=String(counts[i]);const track=document.createElement("div");track.className="weekly-bar-track";const bar=document.createElement("span");bar.style.height=(counts[i]/max*100)+"%";if(counts[i]===0)bar.style.height="3px";track.append(bar);const label=document.createElement("small");label.textContent=parseDate(day).toLocaleDateString("zh-CN",{weekday:"short"});col.append(value,track,label);chart.append(col);});
+    const hasHistory=readLocalList(COMPLETION_HISTORY_KEY).length||readLocalList(FOCUS_HISTORY_KEY).length;
+    $("weeklyReviewNote").textContent=hasHistory?"统计最近 7 天内记录的完成动作与已结束的专注会话；撤销完成状态不会删除历史记录。未记录的历史活动不会被推算。":"从现在开始记录你的完成动作和专注会话。功能启用前的历史不会被推测或补造。";
+    const reflections=(()=>{try{return JSON.parse(localStorage.getItem(WEEKLY_REFLECTION_KEY)||"{}");}catch(e){return {};}})();
+    $("weeklyReflectionInput").value=typeof reflections[startKey]==="string"?reflections[startKey]:"";
+    $("weeklyReflectionSaved").textContent=typeof reflections[startKey]==="string"?"本周复盘已保存到本地":"仅保存在当前浏览器";
+    $("saveWeeklyReflectionBtn").onclick=()=>{try{const all=JSON.parse(localStorage.getItem(WEEKLY_REFLECTION_KEY)||"{}");all[startKey]=$("weeklyReflectionInput").value.slice(0,1000);const keys=Object.keys(all).sort().slice(-26),small={};keys.forEach(k=>small[k]=all[k]);localStorage.setItem(WEEKLY_REFLECTION_KEY,JSON.stringify(small));$("weeklyReflectionSaved").textContent="已保存 · "+startKey;toast("本周复盘已保存。");}catch(e){toast("复盘保存失败，请检查浏览器存储空间。");}};
+  }
   function renderStudyDesk(){
     const today=dateKey(new Date());
     const todayEvents=occurrenceEvents(today);
     renderTodayOverview(today,todayEvents);
+    renderWeeklyReview();
     const tasks=todayEvents.filter(studyEvent);
     const done=tasks.filter(e=>e.done).length;
     const pending=tasks.filter(e=>!e.done);
@@ -177,7 +206,7 @@
   function repeatLabel(r){return ({daily:"每天重复",weekly:"每周重复",weekdays:"工作日重复",monthly:"每月重复"})[r]||"";}
   function renderProgress(){const evs=occurrenceEvents(state.selected),done=evs.filter(e=>e.done).length,total=evs.length,pct=total?Math.round(done/total*100):0;$("progressCount").textContent=done+" / "+total;$("progressPercent").textContent=pct+"%";$("progressBar").style.width=pct+"%";}
   function toggleSpecialReminder(eventId,key){const e=state.events.find(x=>x.id===eventId);if(!e)return;snapshot();e.specialReminder=!e.specialReminder;save();render();toast(e.specialReminder?"已设为特别提醒":"已取消特别提醒");}
-  function toggleDone(eventId,key){snapshot();const e=state.events.find(x=>x.id===eventId);if(!e)return;e.done=!e.done;save();render();toast(e.done?"已标记完成":"已恢复为未完成");}
+  function toggleDone(eventId,key){snapshot();const e=state.events.find(x=>x.id===eventId);if(!e)return;e.done=!e.done;recordCompletion(e,e.done,key||dateKey(new Date()));save();render();toast(e.done?"已标记完成":"已恢复为未完成");}
   function syncCountdownOption(){const label=$("countdownOption");const enabled=!!$("eventEnd").value;if(label)label.hidden=!enabled;if(!enabled)$("eventCountdownEnabled").checked=false;}
   function openEditor(e,longTask=false){$("eventForm").reset();$("eventId").value=e?.id||"";const isLongTask=!!(longTask||e?.longTask);$("longTaskMode").value=String(isLongTask);$("longTaskEndDateField").hidden=!isLongTask;$("eventEndDate").required=isLongTask;$("eventEndDate").value=e?.endDate||e?.date||state.selected;$("eventRepeat").disabled=isLongTask||state.occurrenceEditContext?.mode==="series";$("dialogTitle").textContent=isLongTask?(e?"编辑长期任务":"新建长期任务"):(e?"编辑日程":"新建日程");$("eventDate").disabled=state.occurrenceEditContext?.mode==="series";$("eventRepeat").disabled=isLongTask||state.occurrenceEditContext?.mode==="series";const scopeHint=$("editScopeHint");if(scopeHint){scopeHint.hidden=!state.occurrenceEditContext;scopeHint.textContent=state.occurrenceEditContext?.mode==="series"?"统一修改模式：会更新所有同名日程的标题、时间、地点、提醒和星标；各日程日期与重复规则保持不变。":state.occurrenceEditContext?.mode==="single"?"单日程修改模式：只影响选中的这一天；其他重复日期保持不变。":"";} $("eventTitle").value=e?.title||"";$("eventStudyToggle").hidden=interfaceMode==="classic"&&!e?.study;$("eventStudyEnabled").checked=!!e?.study;$("eventStudySubject").value=e?.study?.subject||"";$("eventStudyMinutes").value=String(e?.study?.estimatedMinutes||30);$("eventStudyPriority").value=String(e?.study?.priority||1);$("eventStudyFields").hidden=!$("eventStudyEnabled").checked;$("eventDate").value=state.occurrenceEditContext?.mode==="single"?state.occurrenceEditContext.occurrenceDate:e?.date||state.selected;$("eventTime").value=e?.time||"";$("eventEnd").value=e?.endTime||"";$("eventReminder").value=String(e?.reminder||0);$("eventLocation").value=e?.location||"";$("eventNotes").value=e?.notes||"";$("eventRepeat").value=e?.repeat||"none";$("eventCountdownEnabled").checked=!!e?.countdownEnabled;$("eventSpecialReminder").checked=!!e?.specialReminder;syncCountdownOption();$("eventDialog").showModal();setTimeout(()=>$("eventTitle").focus(),30);}
   $("eventEnd").addEventListener("input",syncCountdownOption);
@@ -327,7 +356,7 @@
   }
   function completeCountdown(eventId){
     const e=state.events.find(item=>item.id===eventId);if(!e)return;
-    snapshot();e.done=true;save();state.countdownMinimized=false;render();
+    snapshot();e.done=true;recordCompletion(e,true,dateKey(new Date()));save();state.countdownMinimized=false;render();
     toast("已确认完成："+e.title);
   }
   function minimizeCountdown(){state.countdownMinimized=true;updateCountdowns();}
