@@ -91,13 +91,13 @@
     $("todayNextOpen").disabled=!next;
     $("todayNextOpen").onclick=()=>{if(next)editEvent(next.seriesId||next.id);};
     const studyTasks=todayEvents.filter(e=>studyEvent(e)&&!e.done);
-    const studyEstimate=studyTasks.reduce((sum,e)=>sum+(Number(e.study.estimatedMinutes)||30),0);
+    const studyEstimate=studyTasks.filter(e=>!(e.time&&e.endTime)).reduce((sum,e)=>sum+(Number(e.study.estimatedMinutes)||30),0);
     const workload=busyMinutes+studyEstimate;
     const banner=$("todayRealityBanner");
     if(!todayEvents.length){banner.className="today-reality-banner reality-neutral";banner.innerHTML='<strong>今天还没有安排</strong><span>可以从一项小任务开始，也可以先查看传统日历。</span>';}
     else if(!timed.length&&!studyTasks.length){banner.className="today-reality-banner reality-neutral";banner.innerHTML='<strong>时间负荷暂时无法准确评估</strong><span>当前没有明确起止时间的日程，也没有未完成的学习任务时长数据。请根据实际情况判断。</span>';}
-    else if(workload>13*60){banner.className="today-reality-banner reality-warning";banner.innerHTML='<strong>今天可能比较紧张</strong><span>明确时段的日程约 '+Math.round(busyMinutes/60*10)/10+' 小时，未完成学习任务预计 '+Math.round(studyEstimate/60*10)/10+' 小时。这里只统计有时长依据的项目，建议检查冲突并留出休息时间。</span>';}
-    else{banner.className="today-reality-banner reality-good";banner.innerHTML='<strong>已完成初步负荷检查</strong><span>明确时段的日程约 '+Math.round(busyMinutes/60*10)/10+' 小时，未完成学习任务预计 '+Math.round(studyEstimate/60*10)/10+' 小时。普通待办若未填写耗时不会被估算；这不是对整天可用时间的保证。</span>';}
+    else if(workload>13*60){banner.className="today-reality-banner reality-warning";banner.innerHTML='<strong>今天可能比较紧张</strong><span>明确时段的日程约 '+Math.round(busyMinutes/60*10)/10+' 小时，另有未安排具体时段的学习任务预计 '+Math.round(studyEstimate/60*10)/10+' 小时。这里只统计有时长依据的项目，建议检查冲突并留出休息时间。</span>';}
+    else{banner.className="today-reality-banner reality-good";banner.innerHTML='<strong>已完成初步负荷检查</strong><span>明确时段的日程约 '+Math.round(busyMinutes/60*10)/10+' 小时，另有未安排具体时段的学习任务预计 '+Math.round(studyEstimate/60*10)/10+' 小时。普通待办若未填写耗时不会被估算；这不是对整天可用时间的保证。</span>';}
     $("todayRecheckBtn").onclick=()=>{renderStudyDesk();toast("已根据当前日程重新评估。");};
     const available=todayEvents.filter(e=>!e.done&&!focusIds.includes(e.id));
     const addTargets=available.slice().sort((a,b)=>(Number(b.study?.priority)||0)-(Number(a.study?.priority)||0)||(a.time||"99:99").localeCompare(b.time||"99:99"));
