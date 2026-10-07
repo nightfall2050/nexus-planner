@@ -7,7 +7,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <meta name="description" content="NEXUS Planner — 隐私优先的个人日程与智能日历。">
   <title>NEXUS Planner — Personal Command Center</title>
-  <link rel="stylesheet" href="./styles.css?v=12">
+  <link rel="stylesheet" href="./styles.css?v=13">
   <script>
     window.addEventListener("error", function (event) {
       try {
@@ -38,7 +38,7 @@
       } catch (_) {}
     });
   </script>
-  <script src="./app.js?v=19" defer></script>
+  <script src="./app.js?v=20" defer></script>
 </head>
 <body>
   <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
@@ -57,7 +57,21 @@
       <div class="toolbar-create-actions"><button class="primary-btn" id="addBtn"><span>＋</span> 新建日程</button><button class="secondary-btn" id="addLongTaskBtn" type="button">＋ 新建长期任务</button></div>
     </section>
     <section id="studyDesk" class="study-desk" hidden aria-labelledby="studyDeskHeading">
-      <div class="study-welcome"><div><p class="eyebrow">NEXUS / STUDY DESK</p><h2 id="studyDeskHeading">今天学什么？</h2><p class="muted">先完成重要的，再考虑更多的。</p></div><button type="button" id="studyAddBtn" class="primary-btn">＋ 新建学习任务</button></div>
+      <div class="study-welcome"><div><p class="eyebrow">NEXUS / TODAY</p><h2 id="studyDeskHeading">今天，重要的事先做。</h2><p class="muted">先看清今天，再决定下一步。学习、工作与个人日程在这里汇总。</p></div><button type="button" id="studyAddBtn" class="primary-btn">＋ 新建学习任务</button></div>
+      <section class="today-command panel" aria-labelledby="todayCommandHeading">
+        <div class="panel-heading"><div><p class="eyebrow">YOUR DAY AT A GLANCE</p><h3 id="todayCommandHeading">今日行动概览</h3></div><span id="todayDateLabel" class="date-badge"></span></div>
+        <div class="today-command-stats">
+          <article><span>今日安排</span><strong id="todayEventCount">0</strong><small>项日程与任务</small></article>
+          <article><span>已完成</span><strong id="todayDoneCount">0</strong><small>项已完成</small></article>
+          <article><span>重点事项</span><strong id="todayFocusCount">0 / 3</strong><small>由你决定优先级</small></article>
+          <article><span>固定安排</span><strong id="todayBusyTime">待评估</strong><small>按有明确起止时间的日程统计</small></article>
+        </div>
+        <div class="today-focus-layout">
+          <div><div class="today-subheading"><div><p class="eyebrow">TOP PRIORITIES</p><h4>今天最重要的事</h4></div><span class="muted tiny">最多选择 3 项</span></div><div id="todayFocusList" class="today-focus-list"></div></div>
+          <div class="today-next-box"><p class="eyebrow">YOUR NEXT STEP</p><h4 id="todayNextTitle">正在整理今天的安排…</h4><p id="todayNextReason" class="muted small"></p><div class="today-next-actions"><button type="button" id="todayNextOpen" class="primary-btn">打开任务</button><button type="button" id="todayRecheckBtn" class="secondary-btn">重新评估</button></div></div>
+        </div>
+        <div id="todayRealityBanner" class="today-reality-banner" role="status"></div>
+      </section>
       <div class="study-stats">
         <article class="study-stat panel"><span class="muted small">待完成学习任务</span><strong id="studyTaskCount">0</strong><span class="muted tiny">今日安排</span></article>
         <article class="study-stat panel"><span class="muted small">计划学习时间</span><strong id="studyMinutes">0 分钟</strong><span class="muted tiny">按任务预计时长统计</span></article>
