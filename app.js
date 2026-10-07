@@ -202,6 +202,18 @@
     const ratio=plan?Math.min(100,Math.round(actual/plan*100)):0;$("studyRhythmBar").style.width=Math.max(rate,ratio)+"%";
     $("studyMomentumMessage").textContent=!tasks.length?"今天没有学习任务，给自己留一点空间。":done===tasks.length?"今天的学习任务全部完成了。可以休息，也可以回顾专注记录。":actual?"已经进入节奏：今天实际专注 "+actual+" 分钟。下一步继续一轮小而明确的专注。":"先不要追求完整，点击任意任务的“开始专注”，完成第一轮就算启动节奏。";
   }
+  function renderStudyMomentum(tasks){
+    const today=dateKey(new Date()),focus=readLocalList(FOCUS_HISTORY_KEY).filter(x=>x&&x.date===today),actual=focus.reduce((sum,x)=>sum+Math.max(0,Number(x.minutes)||0),0),done=tasks.filter(e=>e.done).length,plan=tasks.reduce((sum,e)=>sum+(Number(e.study.estimatedMinutes)||30),0),rate=tasks.length?Math.round(done/tasks.length*100):0;
+    const completionDays=new Set(readLocalList(COMPLETION_HISTORY_KEY).filter(x=>x&&x.done&&x.date<=today).map(x=>x.date));let streak=0,d=new Date();
+    while(streak<365){const key=dateKey(d);if(!completionDays.has(key))break;streak++;d.setDate(d.getDate()-1);}
+    $("studyPlanMinutes").textContent=plan>=60?Math.floor(plan/60)+" 小时"+(plan%60?" "+plan%60+" 分钟":""):plan+" 分钟";
+    $("studyActualMinutes").textContent=actual>=60?Math.floor(actual/60)+" 小时"+(actual%60?" "+actual%60+" 分钟":""):actual+" 分钟";
+    $("studyDoneRate").textContent=rate+"%";$("studyStreak").querySelector("strong").textContent=streak+" 天";
+    const next=tasks.filter(e=>!e.done).sort((a,b)=>(Number(b.study.priority)||1)-(Number(a.study.priority)||1)||(a.time||"99:99").localeCompare(b.time||"99:99"))[0];
+    $("studyMomentumNext").textContent=next?next.title:"全部完成";
+    const ratio=plan?Math.min(100,Math.round(actual/plan*100)):0;$("studyRhythmBar").style.width=Math.max(rate,ratio)+"%";
+    $("studyMomentumMessage").textContent=!tasks.length?"今天没有学习任务，给自己留一点空间。":done===tasks.length?"今天的学习任务全部完成了。可以休息，也可以回顾专注记录。":actual?"已经进入节奏：今天实际专注 "+actual+" 分钟。下一步继续一轮小而明确的专注。":"先不要追求完整，点击任意任务的“开始专注”，完成第一轮就算启动节奏。";
+  }
   function renderStudyDesk(){
     const today=dateKey(new Date());
     const todayEvents=occurrenceEvents(today);
@@ -209,6 +221,7 @@
     renderWeeklyReview();
     renderGoals();
     const tasks=todayEvents.filter(studyEvent);
+    renderStudyMomentum(tasks);
     renderStudyMomentum(tasks);
     const done=tasks.filter(e=>e.done).length;
     const pending=tasks.filter(e=>!e.done);
