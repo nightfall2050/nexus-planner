@@ -127,6 +127,16 @@
     </section>
     <footer><span>© NEXUS PLANNER</span><span>DESIGNED FOR CLARITY · BUILT FOR PRIVACY</span><button id="privacyBtn" class="footer-link">隐私与使用说明</button></footer>
   </main>
+  <dialog id="goalAddStepsDialog" class="modal goal-checkin-dialog" aria-labelledby="goalAddStepsDialogTitle">
+    <form id="goalAddStepsForm" method="dialog">
+      <div class="modal-heading"><div><p class="eyebrow">NEXUS / GOALS</p><h2 id="goalAddStepsDialogTitle">添加目标步骤</h2></div><button type="button" class="icon-button" onclick="this.closest('dialog').close()" aria-label="关闭">×</button></div>
+      <input type="hidden" id="goalAddStepsGoalId">
+      <label class="field-label" for="goalAddStepsInput">步骤描述</label>
+      <textarea id="goalAddStepsInput" rows="5" maxlength="2000" required placeholder="例如：\n每天早上7点到8点背单词\n每周六每周日下午3点到5点英语听力\n11月1号开始每天晚上9点30到10点半四六级题库练习"></textarea>
+      <p class="notice">和创建目标时使用完全相同的步骤输入方式：每行一个步骤。之后可按步骤中的时间安排到日程，也可以设置为目标打卡。</p>
+      <div class="modal-actions"><button type="button" class="secondary-btn" onclick="this.closest('dialog').close()">取消</button><button type="submit" class="primary-btn">添加步骤</button></div>
+    </form>
+  </dialog>
   <dialog id="goalCheckinDialog" class="modal goal-checkin-dialog" aria-labelledby="goalCheckinDialogTitle">
     <form id="goalCheckinForm" method="dialog">
       <div class="modal-heading"><div><p class="eyebrow">NEXUS / CHECK-IN</p><h2 id="goalCheckinDialogTitle">设置目标打卡</h2></div><button type="button" class="icon-button" onclick="this.closest('dialog').close()" aria-label="关闭">×</button></div>
