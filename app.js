@@ -136,9 +136,9 @@
   function weekKey(date){return dateKey(mondayOf(date));}
   function renderWeeklyReview(){
     const now=new Date(),today=dateKey(now),start=mondayOf(now),startKey=dateKey(start),days=[];
-    for(let i=0;i<7;i++){const d=new Date(start);d.setDate(start.getDate()+i);days.push(dateKey(d));}
-    const completed=readLocalList(COMPLETION_HISTORY_KEY).filter(x=>x&&x.done&&typeof x.at==="number"&&x.at>=now.getTime()-7*86400000&&x.at<=now.getTime());
-    const focus=readLocalList(FOCUS_HISTORY_KEY).filter(x=>x&&typeof x.at==="number"&&x.at>=now.getTime()-7*86400000&&x.at<=now.getTime());
+    for(let i=6;i>=0;i--){const d=new Date(now.getFullYear(),now.getMonth(),now.getDate());d.setDate(d.getDate()-i);days.push(dateKey(d));}
+    const completed=readLocalList(COMPLETION_HISTORY_KEY).filter(x=>x&&x.done&&typeof x.at==="number"&&x.date>=days[0]&&x.date<=today&&x.at<=now.getTime());
+    const focus=readLocalList(FOCUS_HISTORY_KEY).filter(x=>x&&typeof x.at==="number"&&x.date>=days[0]&&x.date<=today&&x.at<=now.getTime());
     const counts=days.map(day=>completed.filter(x=>x.date===day).length),max=Math.max(1,...counts);
     $("weeklyReviewRange").textContent=days[0].slice(5)+" — "+days[6].slice(5);
     $("weeklyDoneCount").textContent=String(completed.length);
@@ -150,7 +150,7 @@
     const hasHistory=readLocalList(COMPLETION_HISTORY_KEY).length||readLocalList(FOCUS_HISTORY_KEY).length;
     $("weeklyReviewNote").textContent=hasHistory?"统计最近 7 天内记录的完成动作与已结束的专注会话；撤销完成状态不会删除历史记录。未记录的历史活动不会被推算。":"从现在开始记录你的完成动作和专注会话。功能启用前的历史不会被推测或补造。";
     const reflections=(()=>{try{return JSON.parse(localStorage.getItem(WEEKLY_REFLECTION_KEY)||"{}");}catch(e){return {};}})();
-    $("weeklyReflectionInput").value=typeof reflections[startKey]==="string"?reflections[startKey]:"";
+    if(document.activeElement!==$("weeklyReflectionInput"))$("weeklyReflectionInput").value=typeof reflections[startKey]==="string"?reflections[startKey]:"";
     $("weeklyReflectionSaved").textContent=typeof reflections[startKey]==="string"?"本周复盘已保存到本地":"仅保存在当前浏览器";
     $("saveWeeklyReflectionBtn").onclick=()=>{try{const all=JSON.parse(localStorage.getItem(WEEKLY_REFLECTION_KEY)||"{}");all[startKey]=$("weeklyReflectionInput").value.slice(0,1000);const keys=Object.keys(all).sort().slice(-26),small={};keys.forEach(k=>small[k]=all[k]);localStorage.setItem(WEEKLY_REFLECTION_KEY,JSON.stringify(small));$("weeklyReflectionSaved").textContent="已保存 · "+startKey;toast("本周复盘已保存。");}catch(e){toast("复盘保存失败，请检查浏览器存储空间。");}};
   }
