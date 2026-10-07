@@ -211,10 +211,10 @@
     if(plan.error){toast(plan.error);return;}
     const preview=plan.events.map(e=>e.date+(e.time?" · "+e.time+(e.endTime?"–"+e.endTime:""):"")+" · "+(e.repeat==="daily"?"每天":e.repeat==="weekly"?"每周":"一次")).join("\n");
     if(!confirm("将把“"+step.title+"”按识别出的安排加入学习日程：\n\n"+preview+"\n\n日程会受目标截止日期限制，并保留在日历中。确认安排吗？"))return;
-    const existing=state.events;
-    state.events=existing.concat(plan.events);
+    snapshot();
+    state.events=state.events.concat(plan.events);
     step.scheduledEventIds=plan.events.map(e=>e.id);step.scheduledAt=Date.now();
-    snapshot();save();writeGoals(goals);render();toast("已按步骤中的时间安排加入日程。");
+    save();writeGoals(goals);render();toast("已按步骤中的时间安排加入日程。");
   }
   function openGoalCheckinDialog(goal,step,existing=null){
     const dialog=$("goalCheckinDialog"),form=$("goalCheckinForm");if(!dialog||!form)return;
@@ -249,7 +249,7 @@
       const hit=document.createElement("button");hit.type="button";hit.className="primary-btn";hit.textContent=finished?"已完成":"今日 +1";hit.disabled=finished;hit.onclick=()=>{if(incrementCheckin(checkin.id))renderStudyDesk();};actions.append(hit);
       const manage=document.createElement("button");manage.type="button";manage.className="secondary-btn";manage.textContent=finished&&!checkin.longTerm?"恢复为长期打卡":"管理";manage.onclick=()=>{
         if(finished&&!checkin.longTerm){
-          const items=readCheckins(),item=items.find(x=>x.id===checkin.id);if(item){item.longTerm=true;item.endDate="";item.active=true;item.endedAt=0;writeCheckins(items);renderStudyDesk();toast("已恢复为长期打卡活动。");}
+          const items=readCheckins(),item=items.find(x=>x.id===checkin.id);if(item){item.longTerm=true;item.endDate="";item.active=true;item.endedAt=0;item.goalId="";item.stepId="";const goals=readGoals(),g=goals.find(x=>x.id===goal.id),s=g?.steps.find(x=>x.id===step.id);if(s)s.checkinId="";writeGoals(goals);writeCheckins(items);renderStudyDesk();toast("已恢复为长期打卡活动，并从目标中独立出来。");}
         }else openGoalCheckinDialog(goal,step,checkin);
       };actions.append(manage);
     }
@@ -298,6 +298,7 @@
   }
   function renderIndependentCheckins(){
     const list=$("independentCheckinList");if(!list)return;list.innerHTML="";
+    if(!$("independentCheckinStart").value)$("independentCheckinStart").value=todayKey();
     const items=readCheckins().filter(x=>!x.goalId&&!x.stepId);
     if(!items.length){list.innerHTML='<div class="today-empty">还没有独立打卡活动。它们只存在于学习平台，不会进入日历。</div>';return;}
     items.forEach(item=>{
@@ -348,6 +349,7 @@
     renderTodayOverview(today,todayEvents);
     renderWeeklyReview();
     renderGoals();
+    renderCheckinSection();
     const tasks=todayEvents.filter(studyEvent);
     renderStudyMomentum(tasks);
     const done=tasks.filter(e=>e.done).length;
