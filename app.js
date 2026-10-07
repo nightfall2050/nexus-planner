@@ -37,14 +37,14 @@
   }
   function studyEvent(e){return !!(e&&e.study&&typeof e.study==="object");}
   function studyTaskCard(e,overdue=false){
-    const subject=e.study.subject||"未分类";
-    const minutes=Number(e.study.estimatedMinutes)||30;
-    const priority=Math.max(1,Math.min(3,Number(e.study.priority)||1));
+    const subject=e.study.subject||"未分类",minutes=Number(e.study.estimatedMinutes)||30,priority=Math.max(1,Math.min(3,Number(e.study.priority)||1));
     const dateLabel=overdue?"逾期 · "+esc(e.date):(e.time?esc(e.time):"今日待办");
-    const card=document.createElement("article");
-    card.className="study-task-card"+(e.done?" is-done":"")+(overdue?" is-overdue":"");
-    card.innerHTML='<button type="button" class="study-task-check" aria-label="'+(e.done?"标记未完成":"标记完成")+'" title="'+(e.done?"标记未完成":"标记完成")+'">'+(e.done?"✓":"○")+'</button><div class="study-task-copy"><strong>'+esc(e.title)+'</strong><div class="study-task-meta"><span>'+esc(subject)+'</span><span>'+minutes+' 分钟</span><span>'+dateLabel+'</span></div></div><span class="study-priority priority-'+priority+'">'+(["","普通","较高","重要"][priority])+'</span><button type="button" class="mini-btn study-edit-btn" aria-label="编辑学习任务" title="编辑">✎</button>';
+    const card=document.createElement("article");card.className="study-task-card"+(e.done?" is-done":"")+(overdue?" is-overdue":"");
+    card.innerHTML='<button type="button" class="study-task-check" aria-label="'+(e.done?"标记未完成":"标记完成")+'" title="'+(e.done?"标记未完成":"标记完成")+'">'+(e.done?"✓":"○")+'</button><div class="study-task-copy"><strong>'+esc(e.title)+'</strong><div class="study-task-meta"><span>'+esc(subject)+'</span><span>默认专注 '+minutes+' 分钟</span><span>'+dateLabel+'</span></div><div class="study-task-execution"><span class="study-actual-label"></span><button type="button" class="study-start-btn">'+(e.done?"查看专注":"开始专注")+'</button></div></div><span class="study-priority priority-'+priority+'">'+(["","普通","较高","重要"][priority])+'</span><button type="button" class="mini-btn study-edit-btn" aria-label="编辑学习任务" title="编辑">✎</button>';
+    const actual=readLocalList(FOCUS_HISTORY_KEY).filter(x=>x&&x.id===(e.seriesId||e.id)&&x.date===(e.occurrenceDate||e.date)).reduce((sum,x)=>sum+Math.max(0,Number(x.minutes)||0),0);
+    card.querySelector(".study-actual-label").textContent=actual?("已专注 "+actual+" 分钟"):"还没有专注记录";
     card.querySelector(".study-task-check").addEventListener("click",()=>toggleDone(e.seriesId||e.id,e.occurrenceDate||e.date));
+    card.querySelector(".study-start-btn").addEventListener("click",()=>{if(!e.done)openFocus(e);else toast("已完成任务的专注记录已保留在本地复盘中。");});
     card.querySelector(".study-edit-btn").addEventListener("click",()=>editEvent(e.seriesId||e.id));
     return card;
   }
@@ -190,6 +190,18 @@
     });
   }
   $("goalCreateForm").addEventListener("submit",ev=>{ev.preventDefault();const title=$("goalTitleInput").value.trim(),targetDate=$("goalDateInput").value,steps=$("goalStepsInput").value.split(/\n+/).map(s=>s.trim()).filter(Boolean).slice(0,30).map((title,i)=>({id:"step-"+Date.now().toString(36)+"-"+i,title:title.slice(0,180),done:false,doneAt:0}));if(!title){toast("请先填写目标名称。");return;}const goals=readGoals();goals.unshift({id:"goal-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,6),title:title.slice(0,120),targetDate,createdAt:Date.now(),steps});if(writeGoals(goals)){ $("goalTitleInput").value="";$("goalDateInput").value="";$("goalStepsInput").value="";renderGoals();toast("目标已保存。");}});
+  function renderStudyMomentum(tasks){
+    const today=dateKey(new Date()),focus=readLocalList(FOCUS_HISTORY_KEY).filter(x=>x&&x.date===today),actual=focus.reduce((sum,x)=>sum+Math.max(0,Number(x.minutes)||0),0),done=tasks.filter(e=>e.done).length,plan=tasks.reduce((sum,e)=>sum+(Number(e.study.estimatedMinutes)||30),0),rate=tasks.length?Math.round(done/tasks.length*100):0;
+    const completionDays=new Set(readLocalList(COMPLETION_HISTORY_KEY).filter(x=>x&&x.done&&x.date<=today).map(x=>x.date));let streak=0,d=new Date();
+    while(streak<365){const key=dateKey(d);if(!completionDays.has(key))break;streak++;d.setDate(d.getDate()-1);}
+    $("studyPlanMinutes").textContent=plan>=60?Math.floor(plan/60)+" 小时"+(plan%60?" "+plan%60+" 分钟":""):plan+" 分钟";
+    $("studyActualMinutes").textContent=actual>=60?Math.floor(actual/60)+" 小时"+(actual%60?" "+actual%60+" 分钟":""):actual+" 分钟";
+    $("studyDoneRate").textContent=rate+"%";$("studyStreak").querySelector("strong").textContent=streak+" 天";
+    const next=tasks.filter(e=>!e.done).sort((a,b)=>(Number(b.study.priority)||1)-(Number(a.study.priority)||1)||(a.time||"99:99").localeCompare(b.time||"99:99"))[0];
+    $("studyMomentumNext").textContent=next?next.title:"全部完成";
+    const ratio=plan?Math.min(100,Math.round(actual/plan*100)):0;$("studyRhythmBar").style.width=Math.max(rate,ratio)+"%";
+    $("studyMomentumMessage").textContent=!tasks.length?"今天没有学习任务，给自己留一点空间。":done===tasks.length?"今天的学习任务全部完成了。可以休息，也可以回顾专注记录。":actual?"已经进入节奏：今天实际专注 "+actual+" 分钟。下一步继续一轮小而明确的专注。":"先不要追求完整，点击任意任务的“开始专注”，完成第一轮就算启动节奏。";
+  }
   function renderStudyDesk(){
     const today=dateKey(new Date());
     const todayEvents=occurrenceEvents(today);
@@ -197,6 +209,7 @@
     renderWeeklyReview();
     renderGoals();
     const tasks=todayEvents.filter(studyEvent);
+    renderStudyMomentum(tasks);
     const done=tasks.filter(e=>e.done).length;
     const pending=tasks.filter(e=>!e.done);
     const minutes=tasks.reduce((sum,e)=>sum+(Number(e.study.estimatedMinutes)||30),0);
