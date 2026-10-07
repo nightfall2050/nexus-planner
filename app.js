@@ -220,12 +220,13 @@
     if(isGoalEnded(goal)){toast("目标已经结束，不能再把步骤排入日程。");return;}
     const plan=stepSchedulePlan(step,goal);
     if(plan.error){toast(plan.error);return;}
-    const preview=plan.events.map(e=>e.date+(e.time?" · "+e.time+(e.endTime?"–"+e.endTime:""):"")+" · "+(e.repeat==="daily"?"每天":e.repeat==="weekly"?"每周":"一次")).join("\n");
-    if(!confirm("将把“"+step.title+"”按识别出的安排加入学习日程：\n\n"+preview+"\n\n日程会受目标截止日期限制，并保留在日历中。确认安排吗？"))return;
+    const existingIds=Array.isArray(step.scheduledEventIds)?step.scheduledEventIds.filter(id=>state.events.some(e=>e.id===id)):[];if(existingIds.length){toast("这一步已经安排过日程了，不会重复创建。");return;}
+    const preview=plan.events.map(e=>e.title+" · "+e.date+" · "+e.time+"–"+e.endTime+" · "+(e.repeat==="daily"?"每天":e.repeat==="weekly"?"每周":"一次")).join("\n");
+    if(!confirm("将把“"+step.title+"”识别为以下日程：\n\n"+preview+"\n\n确认安排吗？"))return;
     snapshot();
     state.events=state.events.concat(plan.events);
     step.scheduledEventIds=plan.events.map(e=>e.id);step.scheduledAt=Date.now();
-    save();writeGoals(goals);render();toast("已按步骤中的时间安排加入日程。");
+    save();writeGoals(goals);render();toast("已按识别出的多个时间段安排到日历。");
   }
   function openGoalCheckinDialog(goal,step,existing=null){
     const dialog=$("goalCheckinDialog"),form=$("goalCheckinForm");if(!dialog||!form)return;
