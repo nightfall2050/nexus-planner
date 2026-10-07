@@ -7,7 +7,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <meta name="description" content="NEXUS Planner — 隐私优先的个人日程与智能日历。">
   <title>NEXUS Planner — Personal Command Center</title>
-  <link rel="stylesheet" href="./styles.css?v=15">
+  <link rel="stylesheet" href="./styles.css?v=16">
   <script>
     window.addEventListener("error", function (event) {
       try {
@@ -38,7 +38,7 @@
       } catch (_) {}
     });
   </script>
-  <script src="./app.js?v=22" defer></script>
+  <script src="./app.js?v=23" defer></script>
 </head>
 <body>
   <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
@@ -71,6 +71,12 @@
           <div class="today-next-box"><p class="eyebrow">YOUR NEXT STEP</p><h4 id="todayNextTitle">正在整理今天的安排…</h4><p id="todayNextReason" class="muted small"></p><div class="today-next-actions"><button type="button" id="todayNextOpen" class="primary-btn">打开任务</button><button type="button" id="todayStartFocusBtn" class="primary-btn">进入专注</button><button type="button" id="todayRecheckBtn" class="secondary-btn">重新评估</button><button type="button" id="todayRecoveryBtn" class="secondary-btn">今天被打乱了</button></div></div>
         </div>
         <div id="todayRealityBanner" class="today-reality-banner" role="status"></div>
+      </section>
+      <section class="goal-roadmap panel" aria-labelledby="goalRoadmapHeading">
+        <div class="panel-heading"><div><p class="eyebrow">NEXUS / GOALS</p><h3 id="goalRoadmapHeading">把长期目标拆成下一步</h3></div><span id="goalRoadmapCount" class="date-badge">0 个目标</span></div>
+        <p class="muted small goal-roadmap-intro">先写下你想达成的结果，再把它拆成能执行的小步骤。步骤由你决定，完成情况保存在当前浏览器。</p>
+        <form id="goalCreateForm" class="goal-create-form"><div class="goal-form-grid"><div><label for="goalTitleInput">目标名称 *</label><input id="goalTitleInput" required maxlength="120" placeholder="例如：完成个人作品集"></div><div><label for="goalDateInput">目标日期（可选）</label><input id="goalDateInput" type="date"></div></div><label for="goalStepsInput">拆分步骤（每行一项）</label><textarea id="goalStepsInput" rows="3" maxlength="2000" placeholder="收集 3 个参考案例&#10;完成首页草稿&#10;请朋友给反馈"></textarea><div class="goal-create-footer"><span class="muted tiny">建议每一步都能在一次行动中推进。</span><button type="submit" class="primary-btn">＋ 添加目标</button></div></form>
+        <div id="goalRoadmapList" class="goal-roadmap-list"></div>
       </section>
       <section class="weekly-review panel" aria-labelledby="weeklyReviewHeading">
         <div class="panel-heading"><div><p class="eyebrow">NEXUS / WEEKLY REVIEW</p><h3 id="weeklyReviewHeading">这一周，回顾而不是评判</h3></div><span id="weeklyReviewRange" class="date-badge"></span></div>
