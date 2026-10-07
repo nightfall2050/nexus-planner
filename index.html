@@ -7,7 +7,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <meta name="description" content="NEXUS Planner — 隐私优先的个人日程与智能日历。">
   <title>NEXUS Planner — Personal Command Center</title>
-  <link rel="stylesheet" href="./styles.css?v=13">
+  <link rel="stylesheet" href="./styles.css?v=14">
   <script>
     window.addEventListener("error", function (event) {
       try {
@@ -38,7 +38,7 @@
       } catch (_) {}
     });
   </script>
-  <script src="./app.js?v=20" defer></script>
+  <script src="./app.js?v=21" defer></script>
 </head>
 <body>
   <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
@@ -68,7 +68,7 @@
         </div>
         <div class="today-focus-layout">
           <div><div class="today-subheading"><div><p class="eyebrow">TOP PRIORITIES</p><h4>今天最重要的事</h4></div><span class="muted tiny">最多选择 3 项</span></div><div id="todayFocusList" class="today-focus-list"></div></div>
-          <div class="today-next-box"><p class="eyebrow">YOUR NEXT STEP</p><h4 id="todayNextTitle">正在整理今天的安排…</h4><p id="todayNextReason" class="muted small"></p><div class="today-next-actions"><button type="button" id="todayNextOpen" class="primary-btn">打开任务</button><button type="button" id="todayRecheckBtn" class="secondary-btn">重新评估</button></div></div>
+          <div class="today-next-box"><p class="eyebrow">YOUR NEXT STEP</p><h4 id="todayNextTitle">正在整理今天的安排…</h4><p id="todayNextReason" class="muted small"></p><div class="today-next-actions"><button type="button" id="todayNextOpen" class="primary-btn">打开任务</button><button type="button" id="todayStartFocusBtn" class="primary-btn">进入专注</button><button type="button" id="todayRecheckBtn" class="secondary-btn">重新评估</button><button type="button" id="todayRecoveryBtn" class="secondary-btn">今天被打乱了</button></div></div>
         </div>
         <div id="todayRealityBanner" class="today-reality-banner" role="status"></div>
       </section>
@@ -107,6 +107,17 @@
     </section>
     <footer><span>© NEXUS PLANNER</span><span>DESIGNED FOR CLARITY · BUILT FOR PRIVACY</span><button id="privacyBtn" class="footer-link">隐私与使用说明</button></footer>
   </main>
+  <dialog id="focusDialog" class="modal focus-dialog" aria-labelledby="focusDialogTitle">
+    <div class="modal-heading"><div><p class="eyebrow">NEXUS / FOCUS</p><h2 id="focusDialogTitle">专注执行</h2></div><button type="button" class="icon-button" id="closeFocusDialog" aria-label="关闭专注模式">×</button></div>
+    <div class="focus-session-content"><p class="focus-label">当前任务</p><h3 id="focusTaskTitle">选择一项任务开始</h3><p id="focusTaskMeta" class="muted small"></p><div id="focusTimerDisplay" class="focus-timer-display">25:00</div><p id="focusSessionStatus" class="focus-session-status">准备就绪 · 开始后计时</p><div class="focus-progress-track"><span id="focusProgressBar"></span></div><div class="focus-controls"><button type="button" class="secondary-btn" id="focusPauseBtn">暂停</button><button type="button" class="primary-btn" id="focusStartBtn">开始专注</button><button type="button" class="secondary-btn" id="focusFinishBtn">结束专注</button></div><p class="notice">计时仅记录本地专注会话。结束专注不等于任务完成；你可以单独确认完成状态。</p></div>
+  </dialog>
+  <dialog id="recoveryDialog" class="modal recovery-dialog" aria-labelledby="recoveryDialogTitle">
+    <div class="modal-heading"><div><p class="eyebrow">NEXUS / PLAN RECOVERY</p><h2 id="recoveryDialogTitle">把今天重新整理一下</h2></div><button type="button" class="icon-button" id="closeRecoveryDialog" aria-label="关闭计划恢复">×</button></div>
+    <p class="muted small">只列出今天尚未完成、没有固定开始时间的单次任务。固定时段、重复日程和长期任务不会被自动移动。</p>
+    <div id="recoveryTaskList" class="recovery-task-list"></div><div id="recoveryPreview" class="recovery-preview" hidden></div>
+    <div class="modal-actions recovery-actions"><button type="button" class="secondary-btn" id="recoveryPreviewBtn">预览改期</button><button type="button" class="primary-btn" id="recoveryApplyBtn" disabled>确认应用改期</button></div>
+    <p class="notice">预览只提出建议。只有点击“确认应用改期”并再次确认后，才会写入日程；改期后可使用现有撤销功能恢复。</p>
+  </dialog>
   <dialog id="eventDialog" class="modal"><form id="eventForm" method="dialog"><div class="modal-heading"><div><p class="eyebrow">CREATE AN EVENT</p><h2 id="dialogTitle">新建日程</h2></div><button class="icon-button" type="button" id="closeDialog" aria-label="关闭">×</button></div><input type="hidden" id="eventId"><p id="editScopeHint" class="notice" hidden></p><label class="field-label" for="eventTitle">事项名称 *</label><input id="eventTitle" required maxlength="120" placeholder="例如：项目讨论会"><input type="hidden" id="longTaskMode" value="false"><div class="form-grid"><div><label class="field-label" for="eventDate">开始日期 *</label><input id="eventDate" type="date" required></div><div id="longTaskEndDateField" hidden><label class="field-label" for="eventEndDate">结束日期 *</label><input id="eventEndDate" type="date"></div><div><label class="field-label" for="eventTime">开始时间</label><input id="eventTime" type="time"></div><div><label class="field-label" for="eventEnd">结束时间</label><input id="eventEnd" type="time"><label id="countdownOption" class="countdown-toggle" hidden><input id="eventCountdownEnabled" type="checkbox"> 开始时自动开启倒计时</label></div><div><label class="field-label" for="eventReminder">提前提醒</label><select id="eventReminder"><option value="0">不提醒</option><option value="5">5 分钟</option><option value="10">10 分钟</option><option value="15">15 分钟</option><option value="30">30 分钟</option><option value="60">1 小时</option></select></div></div><label class="field-label" for="eventLocation">地点（可选）</label><input id="eventLocation" maxlength="160" placeholder="线上 / 会议室 / 地址"><label class="field-label" for="eventNotes">备注（可选）</label><textarea id="eventNotes" rows="2" maxlength="1000" placeholder="补充信息"></textarea><label id="eventStudyToggle" class="study-enable-toggle" for="eventStudyEnabled"><input id="eventStudyEnabled" type="checkbox"><span><strong>作为学习任务管理</strong><small>在学习工作台中显示，可设置科目、预计时长和优先级。</small></span></label><div id="eventStudyFields" class="study-editor-fields" hidden><div><label class="field-label" for="eventStudySubject">科目 / 学习领域</label><input id="eventStudySubject" maxlength="80" placeholder="例如：数学、英语、编程"></div><div class="form-grid study-form-grid"><div><label class="field-label" for="eventStudyMinutes">预计时长（分钟）</label><input id="eventStudyMinutes" type="number" min="5" max="1440" step="5" value="30"></div><div><label class="field-label" for="eventStudyPriority">优先级</label><select id="eventStudyPriority"><option value="1">普通</option><option value="2">较高</option><option value="3">重要</option></select></div></div></div><label class="field-label" for="eventRepeat">重复规则</label><select id="eventRepeat"><option value="none">不重复</option><option value="daily">每天</option><option value="weekly">每周（同一星期）</option><option value="weekdays">每个工作日</option><option value="monthly">每月同日</option></select><label class="special-reminder-toggle" for="eventSpecialReminder"><input id="eventSpecialReminder" type="checkbox"><span class="special-star">★</span><span class="special-reminder-copy"><strong>设为特别提醒</strong><small>每次打开网站时出现在特别提醒清单</small></span></label><p class="notice">没有结束时间时按普通待办处理；设置结束时间后可选择是否在开始时自动开启倒计时。重复日程编辑会作用于整个系列，建议先导出备份。</p><div class="modal-actions"><button type="button" class="secondary-btn" id="cancelDialog">取消</button><button type="submit" class="primary-btn">保存日程</button></div></form></dialog>
   <dialog id="infoDialog" class="modal info-modal"><div class="modal-heading"><div><p class="eyebrow">PRIVACY FIRST</p><h2 id="infoTitle">隐私与使用说明</h2></div><button class="icon-button" type="button" id="closeInfo" aria-label="关闭">×</button></div><div id="infoContent" class="info-content"></div><div class="modal-actions"><button class="primary-btn" id="okInfo">知道了</button></div></dialog>
   <section id="specialSummaryOverlay" class="summary-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="specialSummaryHeading">
