@@ -48,9 +48,70 @@
     card.querySelector(".study-edit-btn").addEventListener("click",()=>editEvent(e.seriesId||e.id));
     return card;
   }
+  const TODAY_FOCUS_KEY="nexus-planner-today-focus-v1";
+  function readTodayFocus(day){
+    try{const data=JSON.parse(localStorage.getItem(TODAY_FOCUS_KEY)||"{}");return Array.isArray(data[day])?data[day].filter(x=>typeof x==="string").slice(0,3):[];}catch(e){return [];}
+  }
+  function writeTodayFocus(day,ids){
+    try{const data=JSON.parse(localStorage.getItem(TODAY_FOCUS_KEY)||"{}");data[day]=ids.slice(0,3);const keys=Object.keys(data).sort().slice(-45);const compact={};keys.forEach(k=>compact[k]=data[k]);localStorage.setItem(TODAY_FOCUS_KEY,JSON.stringify(compact));}catch(e){toast("重点事项暂时无法保存，请检查浏览器存储空间。");}
+  }
+  function eventMinutes(e){
+    if(e.time&&e.endTime){const a=e.time.split(":").map(Number),b=e.endTime.split(":").map(Number),n=b[0]*60+b[1]-a[0]*60-a[1];return n>0?n:0;}
+    if(studyEvent(e))return Number(e.study.estimatedMinutes)||30;
+    return 0;
+  }
+  function renderTodayOverview(today,todayEvents){
+    const focusIds=readTodayFocus(today);
+    const byId=new Map(todayEvents.map(e=>[e.id,e]));
+    const focus=focusIds.map(id=>byId.get(id)).filter(Boolean).slice(0,3);
+    const completed=todayEvents.filter(e=>e.done).length;
+    const timed=todayEvents.filter(e=>e.time&&e.endTime);
+    const busyMinutes=timed.reduce((sum,e)=>sum+eventMinutes(e),0);
+    $("todayDateLabel").textContent=parseDate(today).toLocaleDateString("zh-CN",{month:"long",day:"numeric",weekday:"long"});
+    $("todayEventCount").textContent=String(todayEvents.length);
+    $("todayDoneCount").textContent=String(completed);
+    $("todayFocusCount").textContent=focus.length+" / 3";
+    $("todayBusyTime").textContent=timed.length?(Math.floor(busyMinutes/60)+"小时"+(busyMinutes%60?busyMinutes%60+"分":"")):"暂无固定时段";
+    const focusList=$("todayFocusList");focusList.innerHTML="";
+    if(!focus.length)focusList.innerHTML='<div class="today-empty">还没有选定今日重点。可以从下面的日程中添加，最多 3 项。</div>';
+    focus.forEach((e,index)=>{
+      const row=document.createElement("div");row.className="today-focus-item";
+      row.innerHTML='<span class="today-focus-number">'+(index+1)+'</span><div class="today-focus-copy"><strong>'+esc(e.title)+'</strong><small>'+esc(e.time?(e.endTime?e.time+"–"+e.endTime:e.time):e.date===today?"今日待办":"长期任务")+(e.done?" · 已完成":"")+'</small></div><button type="button" class="mini-btn" aria-label="移除今日重点" title="移除重点">×</button>';
+      row.querySelector("button").addEventListener("click",()=>{writeTodayFocus(today,focusIds.filter(id=>id!==e.id));renderStudyDesk();});
+      row.querySelector(".today-focus-copy").addEventListener("click",()=>editEvent(e.seriesId||e.id));
+      focusList.append(row);
+    });
+    const nextCandidates=todayEvents.filter(e=>!e.done).slice().sort((a,b)=>{
+      const ap=Number(a.study?.priority)||0,bp=Number(b.study?.priority)||0;
+      return bp-ap||(a.time||"99:99").localeCompare(b.time||"99:99");
+    });
+    const next=focus.find(e=>!e.done)||nextCandidates[0];
+    $("todayNextTitle").textContent=next?next.title:"今天暂时没有待处理的日程";
+    $("todayNextReason").textContent=next?(focus.includes(next)?"这是你选定的今日重点，先从它开始。":studyEvent(next)?"结合学习任务的优先级和时间安排，建议先处理这项。":next.time?"参考当前日程时间，先查看这项安排。":"这是当前未完成的事项；开始前可先确认它是否仍然重要。"):"你可以休息，或创建一项新的安排。";
+    $("todayNextOpen").disabled=!next;
+    $("todayNextOpen").onclick=()=>{if(next)editEvent(next.seriesId||next.id);};
+    const studyTasks=todayEvents.filter(e=>studyEvent(e)&&!e.done);
+    const studyEstimate=studyTasks.reduce((sum,e)=>sum+(Number(e.study.estimatedMinutes)||30),0);
+    const workload=busyMinutes+studyEstimate;
+    const banner=$("todayRealityBanner");
+    if(!todayEvents.length){banner.className="today-reality-banner reality-neutral";banner.innerHTML='<strong>今天还没有安排</strong><span>可以从一项小任务开始，也可以先查看传统日历。</span>';}
+    else if(!timed.length&&!studyTasks.length){banner.className="today-reality-banner reality-neutral";banner.innerHTML='<strong>时间负荷暂时无法准确评估</strong><span>当前没有明确起止时间的日程，也没有未完成的学习任务时长数据。请根据实际情况判断。</span>';}
+    else if(workload>13*60){banner.className="today-reality-banner reality-warning";banner.innerHTML='<strong>今天可能比较紧张</strong><span>明确时段的日程约 '+Math.round(busyMinutes/60*10)/10+' 小时，未完成学习任务预计 '+Math.round(studyEstimate/60*10)/10+' 小时。这里只统计有时长依据的项目，建议检查冲突并留出休息时间。</span>';}
+    else{banner.className="today-reality-banner reality-good";banner.innerHTML='<strong>已完成初步负荷检查</strong><span>明确时段的日程约 '+Math.round(busyMinutes/60*10)/10+' 小时，未完成学习任务预计 '+Math.round(studyEstimate/60*10)/10+' 小时。普通待办若未填写耗时不会被估算；这不是对整天可用时间的保证。</span>';}
+    $("todayRecheckBtn").onclick=()=>{renderStudyDesk();toast("已根据当前日程重新评估。");};
+    const available=todayEvents.filter(e=>!e.done&&!focusIds.includes(e.id));
+    const addTargets=available.slice().sort((a,b)=>(Number(b.study?.priority)||0)-(Number(a.study?.priority)||0)||(a.time||"99:99").localeCompare(b.time||"99:99"));
+    addTargets.slice(0,8).forEach(e=>{
+      const button=document.createElement("button");button.type="button";button.className="today-pick-btn";button.disabled=focusIds.length>=3;button.textContent=(studyEvent(e)?"＋ 学习 · ":"＋ ") + e.title;
+      button.title=focusIds.length>=3?"请先移除一个重点，再添加新事项":"添加到今日重点";
+      button.addEventListener("click",()=>{writeTodayFocus(today,[...readTodayFocus(today),e.id].slice(0,3));renderStudyDesk();});
+      focusList.append(button);
+    });
+  }
   function renderStudyDesk(){
     const today=dateKey(new Date());
     const todayEvents=occurrenceEvents(today);
+    renderTodayOverview(today,todayEvents);
     const tasks=todayEvents.filter(studyEvent);
     const done=tasks.filter(e=>e.done).length;
     const pending=tasks.filter(e=>!e.done);
