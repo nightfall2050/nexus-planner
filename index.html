@@ -7,7 +7,7 @@
   <link rel="manifest" href="./manifest.webmanifest">
   <meta name="description" content="NEXUS Planner — 隐私优先的个人日程与智能日历。">
   <title>NEXUS Planner — Personal Command Center</title>
-  <link rel="stylesheet" href="./styles.css?v=14">
+  <link rel="stylesheet" href="./styles.css?v=15">
   <script>
     window.addEventListener("error", function (event) {
       try {
@@ -38,7 +38,7 @@
       } catch (_) {}
     });
   </script>
-  <script src="./app.js?v=21" defer></script>
+  <script src="./app.js?v=22" defer></script>
 </head>
 <body>
   <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
@@ -71,6 +71,13 @@
           <div class="today-next-box"><p class="eyebrow">YOUR NEXT STEP</p><h4 id="todayNextTitle">正在整理今天的安排…</h4><p id="todayNextReason" class="muted small"></p><div class="today-next-actions"><button type="button" id="todayNextOpen" class="primary-btn">打开任务</button><button type="button" id="todayStartFocusBtn" class="primary-btn">进入专注</button><button type="button" id="todayRecheckBtn" class="secondary-btn">重新评估</button><button type="button" id="todayRecoveryBtn" class="secondary-btn">今天被打乱了</button></div></div>
         </div>
         <div id="todayRealityBanner" class="today-reality-banner" role="status"></div>
+      </section>
+      <section class="weekly-review panel" aria-labelledby="weeklyReviewHeading">
+        <div class="panel-heading"><div><p class="eyebrow">NEXUS / WEEKLY REVIEW</p><h3 id="weeklyReviewHeading">这一周，回顾而不是评判</h3></div><span id="weeklyReviewRange" class="date-badge"></span></div>
+        <div class="weekly-review-metrics"><article><span>完成事项</span><strong id="weeklyDoneCount">0</strong><small>仅统计启用记录后的完成动作</small></article><article><span>专注时间</span><strong id="weeklyFocusTime">0 分钟</strong><small>已结束并保存的专注会话</small></article><article><span>活跃天数</span><strong id="weeklyActiveDays">0 / 7</strong><small>最近七天有完成记录的天数</small></article></div>
+        <div class="weekly-review-chart" id="weeklyReviewChart" aria-label="最近七天完成事项趋势"></div>
+        <p id="weeklyReviewNote" class="muted tiny weekly-review-note"></p>
+        <div class="weekly-reflection"><label for="weeklyReflectionInput">给自己留一句复盘</label><textarea id="weeklyReflectionInput" rows="3" maxlength="1000" placeholder="这周什么做得不错？什么让计划变难？下周想尝试一个什么小改变？"></textarea><div class="weekly-reflection-footer"><span id="weeklyReflectionSaved" class="muted tiny">仅保存在当前浏览器</span><button type="button" class="secondary-btn" id="saveWeeklyReflectionBtn">保存本周复盘</button></div></div>
       </section>
       <div class="study-stats">
         <article class="study-stat panel"><span class="muted small">待完成学习任务</span><strong id="studyTaskCount">0</strong><span class="muted tiny">今日安排</span></article>
