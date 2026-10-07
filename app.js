@@ -327,10 +327,11 @@
   function renderCheckinSection(){renderIndependentCheckins();}
   $("goalCreateForm").addEventListener("submit",ev=>{ev.preventDefault();const title=$("goalTitleInput").value.trim(),targetDate=$("goalDateInput").value,steps=$("goalStepsInput").value.split(/\n+/).map(s=>s.trim()).filter(Boolean).slice(0,30).map((title,i)=>({id:"step-"+Date.now().toString(36)+"-"+i,title:title.slice(0,180),done:false,doneAt:0}));if(!title){toast("请先填写目标名称。");return;}const goals=readGoals();goals.unshift({id:"goal-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,6),title:title.slice(0,120),targetDate,createdAt:Date.now(),completedAt:0,steps});if(writeGoals(goals)){ $("goalTitleInput").value="";$("goalDateInput").value="";$("goalStepsInput").value="";renderStudyDesk();toast("目标已保存。");}});
   $("goalCheckinLongTerm").addEventListener("change",()=>{$("goalCheckinEnd").disabled=$("goalCheckinLongTerm").checked;if($("goalCheckinLongTerm").checked)$("goalCheckinEnd").value="";});
+  $("independentCheckinLongTerm").addEventListener("change",()=>{$("independentCheckinEnd").disabled=$("independentCheckinLongTerm").checked;if($("independentCheckinLongTerm").checked)$("independentCheckinEnd").value="";});
   $("goalCheckinForm").addEventListener("submit",ev=>{
     ev.preventDefault();
     const idValue=$("goalCheckinId").value,goalId=$("goalCheckinGoalId").value,stepId=$("goalCheckinStepId").value,title=$("goalCheckinTitle").value.trim(),startDate=$("goalCheckinStart").value,endDate=$("goalCheckinEnd").value,longTerm=$("goalCheckinLongTerm").checked;
-    if(!title||!startDate||(!!endDate&&endDate<startDate)){toast("请填写有效的打卡名称和日期范围。");return;}
+    if(!title||!startDate||(!longTerm&&!endDate)||(!longTerm&&endDate<startDate)){toast("请填写有效的打卡名称和日期范围。");return;}
     const items=readCheckins();
     if(idValue){const item=items.find(x=>x.id===idValue);if(item){item.title=title;item.startDate=startDate;item.endDate=longTerm?"":endDate;item.longTerm=longTerm;item.active=true;item.endedAt=0;}}
     else{const item={id:"checkin-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,7),title,startDate,endDate:longTerm?"":endDate,longTerm,active:true,createdAt:Date.now(),counts:{},goalId:goalId||"",stepId:stepId||""};items.unshift(item);if(goalId&&stepId){const goals=readGoals(),goal=goals.find(g=>g.id===goalId),step=goal?.steps.find(s=>s.id===stepId);if(step){step.checkinId=item.id;step.done=false;writeGoals(goals);}}}
@@ -338,7 +339,7 @@
   });
   $("independentCheckinForm").addEventListener("submit",ev=>{
     ev.preventDefault();const title=$("independentCheckinTitle").value.trim(),startDate=$("independentCheckinStart").value,endDate=$("independentCheckinEnd").value,longTerm=$("independentCheckinLongTerm").checked;
-    if(!title||!startDate||(!!endDate&&endDate<startDate)){toast("请填写有效的打卡名称和日期范围。");return;}
+    if(!title||!startDate||(!longTerm&&!endDate)||(!longTerm&&endDate<startDate)){toast("请填写有效的打卡名称和日期范围。");return;}
     const items=readCheckins();items.unshift({id:"checkin-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,7),title,startDate,endDate:longTerm?"":endDate,longTerm,active:true,createdAt:Date.now(),counts:{},goalId:"",stepId:""});if(writeCheckins(items)){$("independentCheckinTitle").value="";$("independentCheckinStart").value=todayKey();$("independentCheckinEnd").value="";$("independentCheckinLongTerm").checked=true;$("independentCheckinEnd").disabled=true;renderStudyDesk();toast("长期打卡已创建");}
   });
   function renderStudyMomentum(tasks){
