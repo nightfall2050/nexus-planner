@@ -171,3 +171,23 @@
 .recovery-preview p{font-size:11px;line-height:1.6;color:#d0def2;margin:8px 0 0;overflow-wrap:anywhere}
 .recovery-actions{flex-wrap:wrap}
 @media(max-width:560px){.focus-session-content{padding:8px 14px 18px}.focus-controls button{flex:1;min-width:90px}.recovery-actions button{flex:1}}
+
+/* Weekly review and local trends */
+.weekly-review{margin:0 0 18px;padding:22px}
+.weekly-review-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0 18px}
+.weekly-review-metrics article{display:flex;flex-direction:column;gap:5px;padding:13px;border:1px solid var(--line);border-radius:11px;background:#0b1425a8}
+.weekly-review-metrics article>span,.weekly-review-metrics small{font-size:10px;color:var(--muted)}
+.weekly-review-metrics strong{font-size:21px}
+.weekly-review-chart{height:124px;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:9px;align-items:end;padding:8px 4px 0}
+.weekly-bar-column{height:100%;display:flex;align-items:center;flex-direction:column;gap:5px;min-width:0}
+.weekly-bar-value{font-size:10px;color:var(--muted)}
+.weekly-bar-track{flex:1;width:min(100%,22px);display:flex;align-items:flex-end;justify-content:center;border-radius:6px;background:#1a2940;overflow:hidden}
+.weekly-bar-track span{display:block;width:100%;min-height:3px;border-radius:5px 5px 2px 2px;background:linear-gradient(180deg,#79dfc3,#528ce7)}
+.weekly-bar-column small{font-size:10px;color:var(--muted)}
+.weekly-review-note{line-height:1.6;margin:13px 0 17px}
+.weekly-reflection{border-top:1px solid var(--line);padding-top:16px}
+.weekly-reflection label{display:block;font-size:12px;font-weight:650;margin-bottom:8px}
+.weekly-reflection textarea{width:100%;resize:vertical;min-height:74px;border:1px solid var(--line);border-radius:10px;padding:11px;background:#0b1425;color:var(--text);font:inherit;font-size:12px}
+.weekly-reflection-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:9px}
+.weekly-reflection-footer button{font-size:11px}
+@media(max-width:560px){.weekly-review{padding:15px}.weekly-review-metrics{grid-template-columns:1fr}.weekly-review-metrics article{padding:10px}.weekly-review-metrics strong{font-size:19px}.weekly-review-chart{gap:5px}.weekly-reflection-footer{align-items:flex-start;flex-direction:column}}
