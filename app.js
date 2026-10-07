@@ -2,6 +2,7 @@
   "use strict";
   const $ = (id) => document.getElementById(id);
   const STORAGE_KEY = "nexus-planner-v1";
+  function compact(value){return String(value||"").toLocaleLowerCase().replace(/[\s的这条个]/g,"");}
   function fmtDate(d) { return [d.getFullYear(), String(d.getMonth()+1).padStart(2,"0"), String(d.getDate()).padStart(2,"0")].join("-"); }
   const state = { events: [], selected: dateKey(new Date()), cursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), view: "month", undo: null, reminderSeen: new Set(), reminderQueue: [], activeReminder: null, reminderSnoozed: new Map(), countdownActive: new Set(), countdownMinimized: false, startupSummaryQueue: [], startupSummaryActive: null, occurrenceEditContext: null, toastTimer: null };
   function dateKey(d){return fmtDate(d);}
