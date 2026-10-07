@@ -263,6 +263,12 @@
           const items=readCheckins(),item=items.find(x=>x.id===checkin.id);if(item){item.longTerm=true;item.endDate="";item.active=true;item.endedAt=0;item.goalId="";item.stepId="";const goals=readGoals(),g=goals.find(x=>x.id===goal.id),s=g?.steps.find(x=>x.id===step.id);if(s)s.checkinId="";writeGoals(goals);writeCheckins(items);renderStudyDesk();toast("已恢复为长期打卡活动，并从目标中独立出来。");}
         }else openGoalCheckinDialog(goal,step,checkin);
       };actions.append(manage);
+      const restore=document.createElement("button");restore.type="button";restore.className="secondary-btn";restore.textContent="取消打卡模式";restore.title="删除这次打卡记录，并把步骤恢复为普通步骤";restore.onclick=()=>{
+        if(!confirm("取消“"+step.title+"”的打卡模式？\n这会移除该步骤的打卡记录（包括已累计的次数），步骤本身会恢复为普通目标步骤。"))return;
+        const goals=readGoals(),items=readCheckins(),g=goals.find(x=>x.id===goal.id),s=g?.steps.find(x=>x.id===step.id);if(!g||!s)return;
+        s.checkinId="";s.done=false;s.doneAt=0;
+        if(writeGoals(goals)){writeCheckins(items.filter(x=>x.id!==checkin.id));renderStudyDesk();toast("已取消打卡模式，步骤已恢复为普通步骤。");}
+      };actions.append(restore);
     }
     row.append(actions);return row;
   }
