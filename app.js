@@ -2,6 +2,7 @@
   "use strict";
   const $ = (id) => document.getElementById(id);
   const STORAGE_KEY = "nexus-planner-v1";
+  function compact(value){return String(value||"").toLocaleLowerCase().replace(/[\s的这条个]/g,"");}
   function fmtDate(d) { return [d.getFullYear(), String(d.getMonth()+1).padStart(2,"0"), String(d.getDate()).padStart(2,"0")].join("-"); }
   const state = { events: [], selected: dateKey(new Date()), cursor: new Date(new Date().getFullYear(), new Date().getMonth(), 1), view: "month", undo: null, reminderSeen: new Set(), reminderQueue: [], activeReminder: null, reminderSnoozed: new Map(), countdownActive: new Set(), countdownMinimized: false, startupSummaryQueue: [], startupSummaryActive: null, occurrenceEditContext: null, toastTimer: null };
   function dateKey(d){return fmtDate(d);}
@@ -467,7 +468,7 @@
   function editEvent(eventId,occurrenceDate=state.selected){
     const e=state.events.find(x=>x.id===eventId);if(!e)return;
     const key=occurrenceDate||e.date;
-    const sameNameIds=state.events.filter(x=>compact(x.title)===compact(e.title)).map(x=>x.id);
+    const normalizeTitle=x=>String(x||"").trim().replace(/\\s+/g," ").toLowerCase();const sameNameIds=state.events.filter(x=>normalizeTitle(x.title)===normalizeTitle(e.title)).map(x=>x.id);
     const hasRepeat=e.repeat!=="none";
     const hasSameNameRepeat=sameNameIds.some(id=>{const x=state.events.find(y=>y.id===id);return x&&x.repeat!=="none";});
     if(hasRepeat||hasSameNameRepeat){
