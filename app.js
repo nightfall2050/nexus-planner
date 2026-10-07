@@ -169,48 +169,29 @@
   function checkinCount(item,day=todayKey()){return Math.max(0,Number(item.counts?.[day])||0);}
   function incrementCheckin(checkinId){const items=readCheckins(),item=items.find(x=>x.id===checkinId);if(!item||checkinEnded(item))return false;const day=todayKey();if(day<item.startDate||(!item.longTerm&&item.endDate&&day>item.endDate))return false;item.counts=item.counts||{};item.counts[day]=(Number(item.counts[day])||0)+1;item.lastCheckinAt=Date.now();return writeCheckins(items);}
   function firstWeekdayOnOrAfter(start,weekday){const d=parseDate(start),delta=(weekday-d.getDay()+7)%7;d.setDate(d.getDate()+delta);return dateKey(d);}
+  function extractGoalTimeRanges(raw){
+    const source=String(raw||"");
+    const period="上午|早上|中午|下午|晚上|傍晚|晚|早";
+    const tokenRe=new RegExp("("+period+")?\\s*(\\d{1,2})(?:(?:[:：](\\d{1,2}))|(?:点|时)(?:(\\d{1,2})分?|半)?)?","g");
+    const toMin=(p,h,m,half)=>{let hh=Number(h),mm=m!==undefined?Number(m):(half?30:0);if(hh>23||mm>59)return null;if(/下午|晚上|傍晚|晚/.test(p||"")&&hh<12)hh+=12;if(/上午|早上|早/.test(p||"")&&hh===12)hh=0;if(/中午/.test(p||"")&&hh<11)hh+=12;return hh*60+mm;};
+    const ranges=[];
+    for(const seg of source.split(/[，,；;。\\n]+/).map(x=>x.trim()).filter(Boolean)){
+      const ts=[];let m;tokenRe.lastIndex=0;
+      while((m=tokenRe.exec(seg))!==null){if(!/[点时:：]/.test(m[0]))continue;ts.push({index:m.index,end:tokenRe.lastIndex,p:m[1]||"",h:m[2],m:m[3],half:/[点时]半/.test(m[0])});}
+      for(let i=0;i<ts.length-1;i++){const l=ts[i],r=ts[i+1],between=seg.slice(l.end,r.index);if(!/(到|至|-|—|~|～)/.test(between))continue;const sm=toMin(l.p,l.h,l.m,l.half);let em=toMin(r.p||l.p,r.h,r.m,r.half);if(sm!==null&&em!==null&&em<=sm&&!r.p&&sm>=720&&Number(r.h)<12)em+=720;if(sm!==null&&em!==null&&em>sm)ranges.push({time:String(Math.floor(sm/60)).padStart(2,"0")+":"+String(sm%60).padStart(2,"0"),endTime:String(Math.floor(em/60)).padStart(2,"0")+":"+String(em%60).padStart(2,"0")});}
+    }
+    return ranges;
+  }
   function stepSchedulePlan(step,goal){
-    const raw=String(step.title||"").trim();
-    const periodRe="上午|早上|中午|下午|晚上|傍晚|晚|早";
-    const timePart="\\d{1,2}(?:(?::|：)\\d{1,2}|(?:点|时)\\d{1,2}分?|(?:点|时)(?:半)?|(?:点|时)\\d{1,2}(?:分)?)(?:分)?";
-    const rangeRe=new RegExp("("+periodRe+")?\\s*("+timePart+")\\s*(?:到|至|-|—|~|～)\\s*("+periodRe+")?\\s*("+timePart+")","g");
-    const toMin=(period,token)=>{
-      const m=String(token).match(/(\\d{1,2})(?:(?::|：)(\\d{1,2})|(?:点|时)(\\d{1,2})分?|(?:点|时)(半)?)/);
-      if(!m)return null;
-      let h=Number(m[1]),mi=m[2]!==undefined?Number(m[2]):(m[3]!==undefined?Number(m[3]):(m[4]==="半"?30:0));
-      if(/下午|晚上|傍晚|晚/.test(period||"")&&h<12)h+=12;
-      if(/上午|早上|早/.test(period||"")&&h===12)h=0;
-      if(/中午/.test(period||"")&&h<11)h+=12;
-      return h*60+mi;
-    };
-    const ranges=[];let m;
-    while((m=rangeRe.exec(raw))!==null){
-      const startMin=toMin(m[1],m[2]),endMin=toMin(m[3]||m[1],m[4]);
-      if(startMin!==null&&endMin!==null&&endMin>startMin)ranges.push({time:String(Math.floor(startMin/60)).padStart(2,"0")+":"+String(startMin%60).padStart(2,"0"),endTime:String(Math.floor(endMin/60)).padStart(2,"0")+":"+String(endMin%60).padStart(2,"0")});
-    }
-    if(!ranges.length){const parsed=parseNatural(raw);if(parsed?.time)ranges.push({time:parsed.time,endTime:parsed.endTime});}
-    const parsedAll=parseNatural(raw)||{};
-    const repeatDaily=/每天|每日/.test(raw),repeatWeekly=/每周|每个星期|每星期/.test(raw),weekdays=[];
-    if(/周日|星期日|星期天|周天/.test(raw))weekdays.push(0);
-    if(/周一|星期一/.test(raw))weekdays.push(1);
-    if(/周二|星期二/.test(raw))weekdays.push(2);
-    if(/周三|星期三/.test(raw))weekdays.push(3);
-    if(/周四|星期四/.test(raw))weekdays.push(4);
-    if(/周五|星期五/.test(raw))weekdays.push(5);
-    if(/周六|星期六/.test(raw))weekdays.push(6);
-    if(!ranges.length)return {error:/每天|每日|每周|每个星期|每星期/.test(raw)?"这一步没有明确的日程时间。":"没有识别到开始/结束时间。可以写成“每天晚上 9 点到 10 点半”。"};
-    const explicitStart=/\\d{4}[年./-]\\d{1,2}[月./-]\\d{1,2}|\\d{1,2}月\\d{1,2}(?:日|号)?/.test(raw);
-    const start=explicitStart&&parsedAll.date?parsedAll.date:dateKey(new Date(goal.createdAt||Date.now()));
-    if(goal.targetDate&&start>goal.targetDate)return {error:"目标开始日期晚于目标截止日期。"};
-    const repeat=repeatDaily?"daily":(repeatWeekly?"weekly":"none"),targets=repeat==="weekly"&&weekdays.length?weekdays:[null];
-    const subject=/(英语|四六级|单词|听力)/.test(raw)?"英语":"学习";
-    const cleanTitle=raw.replace(/\\d{4}[年./-]\\d{1,2}[月./-]\\d{1,2}(?:日|号)?/g," ").replace(/\\d{1,2}月\\d{1,2}(?:日|号)?/g," ").replace(rangeRe," ").replace(/每周(?:星期)?[一二三四五六日天]|每星期[一二三四五六日天]|(?:周|星期)[一二三四五六日天]/g," ").replace(/每天|每日|每周|每个星期|每星期|开始|从/g," ").replace(/[，,；;]/g," ").replace(/\\s+/g," ").trim()||raw;
-    const events=[];
-    for(const t of ranges)for(const weekday of targets){
-      const eventDate=weekday===null?start:firstWeekdayOnOrAfter(start,weekday);if(goal.targetDate&&eventDate>goal.targetDate)continue;
-      const mins=Number(t.endTime.slice(0,2))*60+Number(t.endTime.slice(3))-Number(t.time.slice(0,2))*60-Number(t.time.slice(3));
-      events.push({id:id(),title:cleanTitle,date:eventDate,time:t.time,endTime:t.endTime,reminder:0,reminderRevision:0,countdownEnabled:false,specialReminder:false,location:"",notes:"",repeat,repeatUntil:goal.targetDate||undefined,done:false,excludedDates:[],overrides:{},study:{subject,estimatedMinutes:Math.max(5,mins),priority:2}});
-    }
+    const raw=String(step.title||"").trim(),ranges=extractGoalTimeRanges(raw);
+    if(!ranges.length){const p=parseNatural(raw);if(p?.time&&p?.endTime)ranges.push({time:p.time,endTime:p.endTime});}
+    const d=parseTargetDate(raw),daily=/每天|每日/.test(raw),weekly=/每周|每个星期|每星期/.test(raw),days=[];
+    if(/周日|星期日|星期天|周天/.test(raw))days.push(0);if(/周一|星期一/.test(raw))days.push(1);if(/周二|星期二/.test(raw))days.push(2);if(/周三|星期三/.test(raw))days.push(3);if(/周四|星期四/.test(raw))days.push(4);if(/周五|星期五/.test(raw))days.push(5);if(/周六|星期六/.test(raw))days.push(6);
+    if(!ranges.length)return {error:"没有识别到完整的开始/结束时间。可以写成“每天晚上9点到10点半”。"};
+    const start=d.matched?d.date:dateKey(new Date(goal.createdAt||Date.now()));if(goal.targetDate&&start>goal.targetDate)return {error:"目标开始日期晚于目标截止日期。"};
+    const repeat=daily?"daily":weekly?"weekly":"none",targets=repeat==="weekly"&&days.length?days:[null];
+    const title=raw.replace(/20\\d{2}[年./-]\\d{1,2}[月./-]\\d{1,2}(?:日|号)?/g," ").replace(/\\d{1,2}月\\d{1,2}(?:日|号)?/g," ").replace(/(?:上午|早上|中午|下午|晚上|傍晚|晚|早)?\\s*\\d{1,2}(?:(?:[:：]\\d{1,2})|(?:点|时)(?:(?:\\d{1,2})分?|半)?)?\\s*(?:到|至|-|—|~|～)\\s*(?:上午|早上|中午|下午|晚上|傍晚|晚|早)?\\s*\\d{1,2}(?:(?:[:：]\\d{1,2})|(?:点|时)(?:(?:\\d{1,2})分?|半)?)?/g," ").replace(/每周(?:星期)?[一二三四五六日天]|每星期[一二三四五六日天]|(?:周|星期)[一二三四五六日天]/g," ").replace(/每天|每日|每周|每个星期|每星期|开始|从/g," ").replace(/[，,；;]/g," ").replace(/\\s+/g," ").trim()||raw;
+    const events=[];for(const t of ranges)for(const day of targets){const date=day===null?start:firstWeekdayOnOrAfter(start,day);if(goal.targetDate&&date>goal.targetDate)continue;const mins=(+t.endTime.slice(0,2)*60+ +t.endTime.slice(3))-(+t.time.slice(0,2)*60+ +t.time.slice(3));events.push({id:id(),title,date,time:t.time,endTime:t.endTime,reminder:0,reminderRevision:0,countdownEnabled:false,specialReminder:false,location:"",notes:"",repeat,repeatUntil:goal.targetDate||undefined,done:false,excludedDates:[],overrides:{},study:{subject:"学习",estimatedMinutes:Math.max(5,mins),priority:2}});}
     return {start,repeat,events};
   }
   function scheduleGoalStep(goalId,stepId){
