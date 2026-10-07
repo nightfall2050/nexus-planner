@@ -660,7 +660,7 @@
       const existing=choice.existingEvent;
       if(existing){
         openEditor(existing,true);
-        $("eventDate").value=existing.date;$("eventEndDate").value=existing.endDate||existing.date;
+        $("eventDate").value=startParsed.date;$("eventEndDate").value=endParsed.date;
         $("eventTime").value=startTime;$("eventEnd").value=endTime;
         $("eventCountdownEnabled").checked=countdownEnabled||!!existing.countdownEnabled;syncCountdownOption();
         $("eventReminder").value=String(reminder||existing.reminder||0);
