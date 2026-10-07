@@ -221,3 +221,4 @@
 .goal-schedule-btn:disabled{opacity:.4}
 .goal-add-step-btn{width:100%;padding:8px;border-style:dashed}
 @media(max-width:700px){.goal-roadmap{padding:15px}.goal-roadmap-list{grid-template-columns:1fr}.goal-form-grid{grid-template-columns:1fr;gap:0}.goal-create-footer{align-items:flex-start;flex-direction:column}}
+.focus-extension-panel{display:flex;flex-direction:column;gap:7px;margin:16px 0;padding:14px;border:1px solid #75aaff55;border-radius:11px;background:#10213a;text-align:left}.focus-extension-panel strong{font-size:13px}.focus-extension-panel>span{font-size:11px;line-height:1.5;color:var(--muted)}.focus-extension-options{display:flex;flex-wrap:wrap;gap:7px;margin-top:5px}.focus-extension-options button{padding:7px 10px;border:1px solid var(--line);border-radius:8px;background:#152640;color:#cfe1fa;font-size:11px;cursor:pointer}.focus-extension-options button:hover{border-color:#77aef5}
