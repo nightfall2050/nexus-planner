@@ -464,7 +464,13 @@
   $("nextBtn").addEventListener("click",()=>{if(state.view==="day"){const d=parseDate(state.selected);d.setDate(d.getDate()+1);state.selected=fmtDate(d);state.cursor=new Date(d.getFullYear(),d.getMonth(),1);}else state.cursor=new Date(state.cursor.getFullYear(),state.cursor.getMonth()+1,1);render();});
   $("todayBtn").addEventListener("click",()=>{state.selected=dateKey(new Date());state.cursor=new Date(new Date().getFullYear(),new Date().getMonth(),1);render();});document.querySelectorAll(".view-btn").forEach(b=>b.addEventListener("click",()=>{state.view=b.dataset.view;renderCalendar();}));
   const RECOVERY_BACKUP_KEY="nexus-planner-pre-import-backup-v1";
-  function backupPayload(){return {app:"NEXUS Planner",version:2,exportedAt:new Date().toISOString(),events:state.events,reminderSeen:[...state.reminderSeen]};}
+  const BACKUP_STATE_KEYS=[REMINDER_SEEN_KEY,INTERFACE_MODE_KEY,TODAY_FOCUS_KEY,FOCUS_SESSION_KEY,COMPLETION_HISTORY_KEY,FOCUS_HISTORY_KEY,WEEKLY_REFLECTION_KEY,GOALS_KEY,CHECKINS_KEY];
+  function readBackupState(){const local={};for(const key of BACKUP_STATE_KEYS){try{const raw=localStorage.getItem(key);if(raw!==null)local[key]=raw;}catch(e){}}
+    return local;
+  }
+  function restoreBackupState(local){if(!local||typeof local!=="object")return;for(const key of BACKUP_STATE_KEYS){try{if(Object.prototype.hasOwnProperty.call(local,key))localStorage.setItem(key,String(local[key]));else localStorage.removeItem(key);}catch(e){}}
+  }
+  function backupPayload(){return {app:"NEXUS Planner",version:3,exportedAt:new Date().toISOString(),events:state.events,reminderSeen:[...state.reminderSeen],localState:readBackupState()};}
   function downloadBackup(payload,filename){const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"});const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=filename;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
   function updateRecoveryButton(){const button=$("restoreImportBackupBtn");if(button)button.hidden=!localStorage.getItem(RECOVERY_BACKUP_KEY);}
   $("exportBtn").addEventListener("click",()=>{downloadBackup(backupPayload(),"nexus-planner-backup-"+dateKey(new Date())+".json");toast("备份已导出，包含日程、重复规则、单次修改和提醒状态。");});
@@ -475,18 +481,21 @@
       const data=JSON.parse(await file.text()),events=Array.isArray(data)?data:data?.events;
       if(!Array.isArray(events)||!events.every(validEvent)||events.some(e=>!e.title.trim()||!Number.isFinite(Date.parse(e.date+"T12:00:00"))))throw new Error("invalid");
       const seen=Array.isArray(data?.reminderSeen)?data.reminderSeen.filter(k=>typeof k==="string"): [];
+      const hasExtendedState=!!(data?.localState&&typeof data.localState==="object");
       const exportedAt=typeof data?.exportedAt==="string"?new Date(data.exportedAt).toLocaleString():"旧版备份（未记录导出时间）";
-      const ok=confirm("备份文件："+file.name+"\n导出时间："+exportedAt+"\n包含 "+events.length+" 条日程。\n\n导入会替换本设备当前的全部日程。继续后，系统会先自动保存一份导入前数据，之后可点击“恢复导入前数据”还原。\n\n确定导入吗？");
+      const extras=hasExtendedState?Object.keys(data.localState).filter(k=>BACKUP_STATE_KEYS.includes(k)).length:0;
+      const ok=confirm("备份文件："+file.name+"\n导出时间："+exportedAt+"\n包含 "+events.length+" 条日程"+(hasExtendedState?"，以及 "+extras+" 组学习/目标/复盘数据":"")+"。\n\n导入会替换本设备当前的数据。继续后，系统会先自动保存一份完整的导入前备份，之后可恢复。\n\n确定导入吗？");
       if(!ok)return;
       const current=JSON.stringify(backupPayload());
       localStorage.setItem(RECOVERY_BACKUP_KEY,current);
-      const previousEvents=state.events,previousSeen=[...state.reminderSeen];
+      const previousEvents=state.events,previousSeen=[...state.reminderSeen],previousLocalState=readBackupState();
       try{
         state.events=events;save();
-        state.reminderSeen.clear();seen.forEach(k=>state.reminderSeen.add(k));persistReminderSeen();
+        if(hasExtendedState)restoreBackupState(data.localState);
+        state.reminderSeen.clear();(hasExtendedState?JSON.parse(localStorage.getItem(REMINDER_SEEN_KEY)||"[]"):seen).filter(k=>typeof k==="string").forEach(k=>state.reminderSeen.add(k));persistReminderSeen();
       }catch(error){
         state.events=previousEvents;state.reminderSeen.clear();previousSeen.forEach(k=>state.reminderSeen.add(k));
-        try{localStorage.setItem(STORAGE_KEY,JSON.stringify({version:1,events:previousEvents}));persistReminderSeen();}catch(_){}
+        try{localStorage.setItem(STORAGE_KEY,JSON.stringify({version:1,events:previousEvents}));restoreBackupState(previousLocalState);persistReminderSeen();}catch(_){}
         throw error;
       }
       snapshot();updateRecoveryButton();render();toast("备份导入完成；如需撤回，可恢复导入前数据。");
@@ -501,8 +510,9 @@
     const current=JSON.stringify(backupPayload());
     try{
       state.events=backup.events;save();
-      state.reminderSeen.clear();(Array.isArray(backup.reminderSeen)?backup.reminderSeen:[]).filter(k=>typeof k==="string").forEach(k=>state.reminderSeen.add(k));persistReminderSeen();
-      localStorage.setItem(RECOVERY_BACKUP_KEY,current);snapshot();render();toast("已恢复；当前数据已另存为下一份恢复点。");
+      if(backup.localState&&typeof backup.localState==="object")restoreBackupState(backup.localState);
+      state.reminderSeen.clear();(backup.localState&&backup.localState[REMINDER_SEEN_KEY]?JSON.parse(localStorage.getItem(REMINDER_SEEN_KEY)||"[]"):Array.isArray(backup.reminderSeen)?backup.reminderSeen:[]).filter(k=>typeof k==="string").forEach(k=>state.reminderSeen.add(k));persistReminderSeen();
+      localStorage.setItem(RECOVERY_BACKUP_KEY,current);snapshot();render();toast("已恢复；目标、学习、复盘等数据也已回到导入前状态。");
     }catch(e){toast("恢复失败，存储空间可能不足。");}
   });
   updateRecoveryButton();
