@@ -203,12 +203,13 @@
     const repeat=repeatDaily?"daily":(repeatWeekly?"weekly":"none");
     const targets=repeat==="weekly"&&weekdays.length?weekdays:[null];
     const subject=/(英语|四六级|单词|听力)/.test(raw)?"英语":"学习";
+    const cleanTitle=raw.replace(rangeRe," ").replace(/\d{1,2}月\d{1,2}(?:日|号)?/g," ").replace(/每天|每日|每周|每个星期|每星期|开始|从/g," ").replace(/[，,；;]/g," ").replace(/\s+/g," ").trim()||raw;
     const events=[];
     for(const t of ranges){
       for(const weekday of targets){
         const eventDate=weekday===null?start:firstWeekdayOnOrAfter(start,weekday);
         if(goal.targetDate&&eventDate>goal.targetDate)continue;
-        events.push({id:id(),title:raw,date:eventDate,time:t.time,endTime:t.endTime,reminder:0,reminderRevision:0,countdownEnabled:false,specialReminder:false,location:"",notes:"",repeat,repeatUntil:goal.targetDate||undefined,done:false,excludedDates:[],overrides:{},study:{subject,estimatedMinutes:Math.max(5,(Number(t.endTime.slice(0,2))*60+Number(t.endTime.slice(3)))-(Number(t.time.slice(0,2))*60+Number(t.time.slice(3)))),priority:2}});
+        events.push({id:id(),title:cleanTitle,date:eventDate,time:t.time,endTime:t.endTime,reminder:0,reminderRevision:0,countdownEnabled:false,specialReminder:false,location:"",notes:"",repeat,repeatUntil:goal.targetDate||undefined,done:false,excludedDates:[],overrides:{},study:{subject,estimatedMinutes:Math.max(5,(Number(t.endTime.slice(0,2))*60+Number(t.endTime.slice(3)))-(Number(t.time.slice(0,2))*60+Number(t.time.slice(3)))),priority:2}});
       }
     }
     return {start,repeat,events};
