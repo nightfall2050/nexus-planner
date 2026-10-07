@@ -197,7 +197,7 @@
       if(/每天|每日|每周|每个星期|每星期/.test(raw))return {error:"这一步没有明确的日程时间。建议把它设置成学习打卡，而不是日历任务。"};
       return {error:"没有识别到开始/结束时间。可以先把时间写成“每天晚上 9 点到 10 点半”这种形式。"};
     }
-    const explicitStart=/\d{4}[年./-]\d{1,2}[月./-]\d{1,2}|\d{1,2}月\d{1,2}日?/.test(raw);
+    const explicitStart=/\d{4}[年./-]\d{1,2}[月./-]\d{1,2}|\d{1,2}月\d{1,2}(?:日|号)?/.test(raw);
     const start=explicitStart&&parsedAll.date?parsedAll.date:dateKey(new Date(goal.createdAt||Date.now()));
     if(goal.targetDate&&start>goal.targetDate)return {error:"目标开始日期晚于目标截止日期。"};
     const repeat=repeatDaily?"daily":(repeatWeekly?"weekly":"none");
