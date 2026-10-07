@@ -169,51 +169,8 @@
   function checkinCount(item,day=todayKey()){return Math.max(0,Number(item.counts?.[day])||0);}
   function incrementCheckin(checkinId){const items=readCheckins(),item=items.find(x=>x.id===checkinId);if(!item||checkinEnded(item))return false;const day=todayKey();if(day<item.startDate||(!item.longTerm&&item.endDate&&day>item.endDate))return false;item.counts=item.counts||{};item.counts[day]=(Number(item.counts[day])||0)+1;item.lastCheckinAt=Date.now();return writeCheckins(items);}
   function firstWeekdayOnOrAfter(start,weekday){const d=parseDate(start),delta=(weekday-d.getDay()+7)%7;d.setDate(d.getDate()+delta);return dateKey(d);}
-  function stepSchedulePlan(step,goal){
-    const raw=String(step.title||"").trim();
-    const periodRe="上午|早上|中午|下午|晚上|傍晚|晚|早";
-    const timePart="\\d{1,2}(?:(?::|：)\\d{1,2}|(?:点|时)\\d{1,2}分?|(?:点|时)(?:半)?|(?:点|时)\\d{1,2}(?:分)?)(?:分)?";
-    const rangeRe=new RegExp("("+periodRe+")?\\s*("+timePart+")\\s*(?:到|至|-|—|~|～)\\s*("+periodRe+")?\\s*("+timePart+")","g");
-    const toMin=(period,token)=>{
-      const m=String(token).match(/(\\d{1,2})(?:(?::|：)(\\d{1,2})|(?:点|时)(\\d{1,2})分?|(?:点|时)(半)?)/);
-      if(!m)return null;
-      let h=Number(m[1]),mi=m[2]!==undefined?Number(m[2]):(m[3]!==undefined?Number(m[3]):(m[4]==="半"?30:0));
-      if(/下午|晚上|傍晚|晚/.test(period||"")&&h<12)h+=12;
-      if(/上午|早上|早/.test(period||"")&&h===12)h=0;
-      if(/中午/.test(period||"")&&h<11)h+=12;
-      return h*60+mi;
-    };
-    const ranges=[];let m;
-    while((m=rangeRe.exec(raw))!==null){
-      const startMin=toMin(m[1],m[2]),endMin=toMin(m[3]||m[1],m[4]);
-      if(startMin!==null&&endMin!==null&&endMin>startMin)ranges.push({time:String(Math.floor(startMin/60)).padStart(2,"0")+":"+String(startMin%60).padStart(2,"0"),endTime:String(Math.floor(endMin/60)).padStart(2,"0")+":"+String(endMin%60).padStart(2,"0")});
-    }
-    if(!ranges.length){const parsed=parseNatural(raw);if(parsed?.time)ranges.push({time:parsed.time,endTime:parsed.endTime});}
-    const parsedAll=parseNatural(raw)||{};
-    const repeatDaily=/每天|每日/.test(raw),repeatWeekly=/每周|每个星期|每星期/.test(raw),weekdays=[];
-    if(/周日|星期日|星期天|周天/.test(raw))weekdays.push(0);
-    if(/周一|星期一/.test(raw))weekdays.push(1);
-    if(/周二|星期二/.test(raw))weekdays.push(2);
-    if(/周三|星期三/.test(raw))weekdays.push(3);
-    if(/周四|星期四/.test(raw))weekdays.push(4);
-    if(/周五|星期五/.test(raw))weekdays.push(5);
-    if(/周六|星期六/.test(raw))weekdays.push(6);
-    if(!ranges.length)return {error:/每天|每日|每周|每个星期|每星期/.test(raw)?"这一步没有明确的日程时间。":"没有识别到开始/结束时间。可以写成“每天晚上 9 点到 10 点半”。"};
-    const explicitStart=/\\d{4}[年./-]\\d{1,2}[月./-]\\d{1,2}|\\d{1,2}月\\d{1,2}(?:日|号)?/.test(raw);
-    const start=explicitStart&&parsedAll.date?parsedAll.date:dateKey(new Date(goal.createdAt||Date.now()));
-    if(goal.targetDate&&start>goal.targetDate)return {error:"目标开始日期晚于目标截止日期。"};
-    const repeat=repeatDaily?"daily":(repeatWeekly?"weekly":"none"),targets=repeat==="weekly"&&weekdays.length?weekdays:[null];
-    const subject=/(英语|四六级|单词|听力)/.test(raw)?"英语":"学习";
-    const cleanTitle=raw.replace(/\\d{4}[年./-]\\d{1,2}[月./-]\\d{1,2}(?:日|号)?/g," ").replace(/\\d{1,2}月\\d{1,2}(?:日|号)?/g," ").replace(rangeRe," ").replace(/每周(?:星期)?[一二三四五六日天]|每星期[一二三四五六日天]|(?:周|星期)[一二三四五六日天]/g," ").replace(/每天|每日|每周|每个星期|每星期|开始|从/g," ").replace(/[，,；;]/g," ").replace(/\\s+/g," ").trim()||raw;
-    const events=[];
-    for(const t of ranges)for(const weekday of targets){
-      const eventDate=weekday===null?start:firstWeekdayOnOrAfter(start,weekday);if(goal.targetDate&&eventDate>goal.targetDate)continue;
-      const mins=Number(t.endTime.slice(0,2))*60+Number(t.endTime.slice(3))-Number(t.time.slice(0,2))*60-Number(t.time.slice(3));
-      events.push({id:id(),title:cleanTitle,date:eventDate,time:t.time,endTime:t.endTime,reminder:0,reminderRevision:0,countdownEnabled:false,specialReminder:false,location:"",notes:"",repeat,repeatUntil:goal.targetDate||undefined,done:false,excludedDates:[],overrides:{},study:{subject,estimatedMinutes:Math.max(5,mins),priority:2}});
-    }
-    return {start,repeat,events};
-  }
-  function scheduleGoalStep(goalId,stepId){
+  function extractGoalTimeRanges(raw){const source=String(raw||""),period="上午|早上|中午|下午|晚上|傍晚|晚|早",tokenRe=new RegExp("("+period+")?\\s*(\\d{1,2})(?:(?:[:：](\\d{1,2}))|(?:点|时)(?:(\\d{1,2})分?|半)?)?","g"),toMin=(p,h,m,half)=>{let hh=Number(h),mm=m!==undefined?Number(m):(half?30:0);if(hh>23||mm>59)return null;if(/下午|晚上|傍晚|晚/.test(p||"")&&hh<12)hh+=12;if(/上午|早上|早/.test(p||"")&&hh===12)hh=0;if(/中午/.test(p||"")&&hh<11)hh+=12;return hh*60+mm;},ranges=[];for(const seg of source.split(/[，,；;。\\n]+/).map(x=>x.trim()).filter(Boolean)){const ts=[];let m;tokenRe.lastIndex=0;while((m=tokenRe.exec(seg))!==null){if(!/[点时:：]/.test(m[0]))continue;ts.push({end:tokenRe.lastIndex,index:m.index,p:m[1]||"",h:m[2],m:m[3],half:/[点时]半/.test(m[0])});}for(let i=0;i<ts.length-1;i++){const l=ts[i],r=ts[i+1],between=seg.slice(l.end,r.index);if(!/(到|至|-|—|~|～)/.test(between))continue;const sm=toMin(l.p,l.h,l.m,l.half);let em=toMin(r.p||l.p,r.h,r.m,r.half);if(sm!==null&&em!==null&&em<=sm&&!r.p&&sm>=720&&Number(r.h)<12)em+=720;if(sm!==null&&em!==null&&em>sm)ranges.push({time:String(Math.floor(sm/60)).padStart(2,"0")+":"+String(sm%60).padStart(2,"0"),endTime:String(Math.floor(em/60)).padStart(2,"0")+":"+String(em%60).padStart(2,"0")});}}return ranges;}
+  function stepSchedulePlan(step,goal){const raw=String(step.title||"").trim(),ranges=extractGoalTimeRanges(raw);if(!ranges.length){const p=parseNatural(raw);if(p?.time&&p?.endTime)ranges.push({time:p.time,endTime:p.endTime});}const d=parseTargetDate(raw),daily=/每天|每日/.test(raw),weekly=/每周|每个星期|每星期/.test(raw),days=[];if(/周日|星期日|星期天|周天/.test(raw))days.push(0);if(/周一|星期一/.test(raw))days.push(1);if(/周二|星期二/.test(raw))days.push(2);if(/周三|星期三/.test(raw))days.push(3);if(/周四|星期四/.test(raw))days.push(4);if(/周五|星期五/.test(raw))days.push(5);if(/周六|星期六/.test(raw))days.push(6);if(!ranges.length)return {error:"没有识别到完整的开始/结束时间。可以写成“每天晚上9点到10点半”。"};const start=d.matched?d.date:dateKey(new Date(goal.createdAt||Date.now()));if(goal.targetDate&&start>goal.targetDate)return {error:"目标开始日期晚于目标截止日期。"};const repeat=daily?"daily":weekly?"weekly":"none",targets=repeat==="weekly"&&days.length?days:[null],title=raw.replace(/20\\d{2}[年./-]\\d{1,2}[月./-]\\d{1,2}(?:日|号)?/g," ").replace(/\\d{1,2}月\\d{1,2}(?:日|号)?/g," ").replace(/(?:上午|早上|中午|下午|晚上|傍晚|晚|早)?\\s*\\d{1,2}(?:(?:[:：]\\d{1,2})|(?:点|时)(?:(?:\\d{1,2})分?|半)?)?\\s*(?:到|至|-|—|~|～)\\s*(?:上午|早上|中午|下午|晚上|傍晚|晚|早)?\\s*\\d{1,2}(?:(?:[:：]\\d{1,2})|(?:点|时)(?:(?:\\d{1,2})分?|半)?)?/g," ").replace(/每周(?:星期)?[一二三四五六日天]|每星期[一二三四五六日天]|(?:周|星期)[一二三四五六日天]/g," ").replace(/每天|每日|每周|每个星期|每星期|开始|从/g," ").replace(/[，,；;]/g," ").replace(/\\s+/g," ").trim()||raw,events=[];for(const t of ranges)for(const day of targets){const date=day===null?start:firstWeekdayOnOrAfter(start,day);if(goal.targetDate&&date>goal.targetDate)continue;const mins=(+t.endTime.slice(0,2)*60+ +t.endTime.slice(3))-(+t.time.slice(0,2)*60+ +t.time.slice(3));events.push({id:id(),title,date,time:t.time,endTime:t.endTime,reminder:0,reminderRevision:0,countdownEnabled:false,specialReminder:false,location:"",notes:"",repeat,repeatUntil:goal.targetDate||undefined,done:false,excludedDates:[],overrides:{},study:{subject:"学习",estimatedMinutes:Math.max(5,mins),priority:2}});}return {start,repeat,events};}  function scheduleGoalStep(goalId,stepId){
     const goals=readGoals(),goal=goals.find(g=>g.id===goalId),step=goal?.steps.find(s=>s.id===stepId);
     if(!goal||!step)return;
     if(isGoalEnded(goal)){toast("目标已经结束，不能再把步骤排入日程。");return;}
@@ -364,7 +321,10 @@
       const copy=document.createElement("div");copy.append(title,meta,today);const actions=document.createElement("div");actions.className="independent-checkin-actions";actions.append(hit,end);row.append(copy,actions);list.append(row);
     });
   }
-  function renderCheckinSection(){renderIndependentCheckins();}
+  const checkinDashboardState={mode:"day",page:0};
+  function checkinDashboardRecords(items){const rows=[];items.forEach(item=>Object.entries(item.counts||{}).forEach(([date,count])=>{const n=Math.max(0,Number(count)||0);if(n)rows.push({date,count:n});}));return rows;}
+  function renderCheckinDashboard(){const wrap=$("checkinDashboard");if(!wrap)return;const items=readCheckins().filter(x=>x.active!==false||Object.keys(x.counts||{}).length),records=checkinDashboardRecords(items),today=todayKey(),mode=checkinDashboardState.mode,now=new Date(),year=now.getFullYear(),month=String(now.getMonth()+1).padStart(2,"0"),scope=mode==="day"?today:mode==="month"?year+"-"+month:String(year),scoped=records.filter(x=>mode==="day"?x.date===scope:mode==="month"?x.date.slice(0,7)===scope:x.date.slice(0,4)===scope),total=records.reduce((s,x)=>s+x.count,0),scopedTotal=scoped.reduce((s,x)=>s+x.count,0),todayTotal=records.filter(x=>x.date===today).reduce((s,x)=>s+x.count,0),activeDays=new Set(records.map(x=>x.date)).size,byDate={};scoped.forEach(x=>byDate[x.date]=(byDate[x.date]||0)+x.count);const chart=Object.entries(byDate).sort((a,b)=>a[0].localeCompare(b[0])).slice(-14),cards=items.slice().sort((a,b)=>checkinDashboardRecords([b]).reduce((s,x)=>s+x.count,0)-checkinDashboardRecords([a]).reduce((s,x)=>s+x.count,0)),size=4,pages=Math.max(1,Math.ceil(cards.length/size));checkinDashboardState.page=Math.min(checkinDashboardState.page,pages-1);const label=mode==="day"?"今日":mode==="month"?"本月":"今年";wrap.innerHTML='<div class="checkin-dashboard-head"><div><p class="eyebrow">CHECK-IN ANALYTICS</p><h4>打卡节奏与统计</h4><p class="muted small">数据直接来自本地打卡记录，不上传服务器。</p></div><div class="checkin-dashboard-tabs">'+["day","month","year"].map((m,i)=>'<button type="button" class="secondary-btn checkin-dashboard-tab '+(mode===m?"is-active":"")+'" data-checkin-mode="'+m+'">'+["日","月","年"][i]+"</button>").join("")+'</div></div><div class="checkin-dashboard-metrics"><article><span>今日</span><strong>'+todayTotal+'</strong><small>次打卡</small></article><article><span>'+label+'</span><strong>'+scopedTotal+'</strong><small>次累计</small></article><article><span>全部历史</span><strong>'+total+'</strong><small>次累计</small></article><article><span>活跃日期</span><strong>'+activeDays+'</strong><small>有记录的天数</small></article></div>';const chartBox=document.createElement("div");chartBox.className="checkin-chart";const max=Math.max(...chart.map(x=>x[1]),1);chartBox.innerHTML=chart.length?chart.map(([d,n])=>'<div class="checkin-chart-bar" title="'+d+" · "+n+' 次"><span style="height:'+Math.max(8,Math.round(n/max*100))+'%"></span><b>'+n+'</b><small>'+d.slice(5)+'</small></div>').join(""):'<div class="today-empty">当前统计周期还没有打卡记录。</div>';wrap.append(chartBox);const grid=document.createElement("div");grid.className="checkin-dashboard-cards";cards.slice(checkinDashboardState.page*size,(checkinDashboardState.page+1)*size).forEach(item=>{const period=checkinDashboardRecords([item]).filter(x=>mode==="day"?x.date===scope:mode==="month"?x.date.slice(0,7)===scope:x.date.slice(0,4)===scope).reduce((s,x)=>s+x.count,0),card=document.createElement("article");card.className="checkin-dashboard-card";card.innerHTML='<div><strong>'+String(item.title).replace(/</g,"&lt;")+'</strong><small>今日 '+checkinCount(item)+' 次 · '+label+' '+period+' 次</small></div>';const btn=document.createElement("button");btn.type="button";btn.className="primary-btn";btn.textContent="＋1";btn.disabled=checkinEnded(item)||today<item.startDate||(!item.longTerm&&item.endDate&&today>item.endDate);btn.onclick=()=>{if(incrementCheckin(item.id))renderStudyDesk();};card.append(btn);grid.append(card);});wrap.append(grid);if(cards.length>size){const pager=document.createElement("div");pager.className="checkin-dashboard-pager";pager.innerHTML='<button type="button" class="secondary-btn" data-checkin-page="-1">上一页</button><span>'+(checkinDashboardState.page+1)+" / "+pages+'</span><button type="button" class="secondary-btn" data-checkin-page="1">下一页</button>';wrap.append(pager);}wrap.querySelectorAll("[data-checkin-mode]").forEach(b=>b.onclick=()=>{checkinDashboardState.mode=b.dataset.checkinMode;checkinDashboardState.page=0;renderStudyDesk();});wrap.querySelectorAll("[data-checkin-page]").forEach(b=>b.onclick=()=>{checkinDashboardState.page=Math.max(0,Math.min(pages-1,checkinDashboardState.page+Number(b.dataset.checkinPage)));renderStudyDesk();});}
+  function renderCheckinSection(){renderIndependentCheckins();renderCheckinDashboard();}
   $("goalCreateForm").addEventListener("submit",ev=>{ev.preventDefault();const title=$("goalTitleInput").value.trim(),targetDate=$("goalDateInput").value,steps=parseGoalStepLines($("goalStepsInput").value);if(!title){toast("请先填写目标名称。");return;}const goals=readGoals();goals.unshift({id:"goal-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,6),title:title.slice(0,120),targetDate,createdAt:Date.now(),completedAt:0,steps});if(writeGoals(goals)){ $("goalTitleInput").value="";$("goalDateInput").value="";$("goalStepsInput").value="";renderStudyDesk();toast("目标已保存。");}});
   $("goalAddStepsForm").addEventListener("submit",ev=>{
     ev.preventDefault();
