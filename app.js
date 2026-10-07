@@ -580,15 +580,14 @@
     const render=(dateFilter,keyword)=>{
       const key=String(dateFilter||defaultDate);
       const normalized=String(keyword||"").trim().toLocaleLowerCase();
-      const matches=occurrenceEvents(key).filter(e=>!e.longTask||e.date<=key&&(e.endDate||e.date)>=key).filter(e=>!normalized||e.title.toLocaleLowerCase().includes(normalized));
-      const listHtml=matches.length?matches.map(e=>'<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.time||"无指定时间")+(e.endTime?' – '+esc(e.endTime):'')+(e.longTask?' · 长期任务':'')+'</p><button type="button" class="secondary-btn" data-title-choice="'+esc(e.id)+'">使用这个项目名</button></div>').join(""):'<p class="notice">这一天没有符合条件的项目。你可以更换日期、修改关键词，或直接新建。</p>';
-      showDraft('<h4>选择项目名称</h4><p>无论自动识别是否找到项目，都可以浏览指定日期的项目、搜索关键词，或直接新建。</p><label class="field-label" for="sameDayTitleDate">指定日期（查看当天项目）</label><input id="sameDayTitleDate" type="date" value="'+esc(key)+'"><label class="field-label" for="sameDayTitleSearch">项目名称关键词搜索</label><div class="search-input-row"><input id="sameDayTitleSearch" type="search" value="'+esc(keyword||"")+'" placeholder="输入项目名称关键词"><button type="button" class="secondary-btn" id="sameDayTitleSearchBtn">搜索</button></div><div class="title-choice-list"><h5>'+esc(key)+' 当天已有项目</h5>'+listHtml+'</div><div class="draft-buttons"><button type="button" class="secondary-btn" id="createDistinctTitleBtn">新建'+(longTask?'长期任务':'日程')+'</button><button type="button" class="primary-btn" id="useSuggestedTitleBtn">使用识别名称：'+esc(suggestedTitle||"新项目")+'</button></div>');
+      const matches=state.events.filter(e=>(e.longTask?e.date<=key&&(e.endDate||e.date)>=key:occurs(e,key))).filter(e=>!normalized||e.title.toLocaleLowerCase().includes(normalized)).filter(e=>!longTask||e.longTask);
+      const listHtml=matches.length?matches.map(e=>'<div class="draft-candidate"><p><strong>'+esc(e.title)+'</strong></p><p>'+esc(e.date)+(e.longTask?' 至 '+esc(e.endDate||e.date):'')+' · '+esc(e.time||"无指定时间")+(e.endTime?' – '+esc(e.endTime):'')+(e.longTask?' · 长期任务':'')+'</p><button type="button" class="secondary-btn" data-title-choice="'+esc(e.id)+'">选择并修改此项目</button></div>').join(""):'<p class="notice">这一天没有符合条件的项目。你仍可直接新建。</p>';
+      showDraft('<h4>选择已有项目或新建</h4><p>选择已有项目会在原记录上修改你明确提出的内容，其他设置保持不变；只有点击保存后才会生效。</p><label class="field-label" for="sameDayTitleDate">指定日期</label><input id="sameDayTitleDate" type="date" value="'+esc(key)+'"><label class="field-label" for="sameDayTitleSearch">项目名称关键词搜索</label><div class="search-input-row"><input id="sameDayTitleSearch" type="search" value="'+esc(keyword||"")+'" placeholder="输入项目名称关键词"><button type="button" class="secondary-btn" id="sameDayTitleSearchBtn">搜索</button></div><div class="title-choice-list"><h5>'+esc(key)+' 的已有项目</h5>'+listHtml+'</div><div class="draft-buttons"><button type="button" class="primary-btn" id="createDistinctTitleBtn">新建'+(longTask?'长期任务':'日程')+'：'+esc(suggestedTitle||"请填写名称")+'</button></div>');
       $("sameDayTitleSearchBtn").addEventListener("click",()=>render($("sameDayTitleDate").value,$("sameDayTitleSearch").value));
       $("sameDayTitleSearch").addEventListener("keydown",ev=>{if(ev.key==="Enter"){ev.preventDefault();render($("sameDayTitleDate").value,$("sameDayTitleSearch").value);}});
       $("sameDayTitleDate").addEventListener("change",()=>render($("sameDayTitleDate").value,$("sameDayTitleSearch").value));
-      $("draftArea").querySelectorAll("[data-title-choice]").forEach(btn=>btn.addEventListener("click",()=>{const event=state.events.find(e=>e.id===btn.dataset.titleChoice);if(event)onChoose(event.title);}));
-      $("createDistinctTitleBtn").addEventListener("click",()=>onChoose(""));
-      $("useSuggestedTitleBtn").addEventListener("click",()=>onChoose(suggestedTitle||""));
+      $("draftArea").querySelectorAll("[data-title-choice]").forEach(btn=>btn.addEventListener("click",()=>{const event=state.events.find(e=>e.id===btn.dataset.titleChoice);if(event)onChoose({existingEvent:event,date:key});}));
+      $("createDistinctTitleBtn").addEventListener("click",()=>onChoose({existingEvent:null,title:suggestedTitle||"",date:key}));
     };
     render(defaultDate,"");
   }
@@ -636,11 +635,16 @@
     });
     const startTime=parseTimeRange(normalizeChineseHour(startText)).time;
     const endTime=parseTimeRange(normalizeChineseHour(endText)).time;
-    let title=endText;
-    title=title.replace(/^(?:明天|明日|后天|大后天|今天|今日|下周|下星期|这周|本周|周[一二三四五六日天]|星期[一二三四五六日天])?/,"")
+    const cleanTaskTitle = value => String(value||"")
+      .replace(/(?:20\d{2}[年./-]\d{1,2}[月./-]\d{1,2}日?|\d{1,2}月\d{1,2}日?|大后天|后天|明天|明日|今天|今日|下周|下星期|这周|本周|周[一二三四五六日天]|星期[一二三四五六日天])/g," ")
       .replace(/(?:上午|早上|中午|下午|晚上|傍晚)?\s*[0-9一二三四五六七八九十两]{1,3}(?:[:：][0-9]{1,2}|点(?:半|[0-9]{1,2}分?)?|时(?:半|[0-9]{1,2}分?)?)/g," ")
-      .replace(/^(?:完成|做完|结束|截止|开始|开始做|去完成|要完成)\s*/,"")
-      .replace(/[，,。；;]/g," ").replace(/\s+/g," ").trim();
+      .replace(/^(?:从|把|请帮我|请|帮我|给我|将|给)\s*/,"")
+      .replace(/(?:的)?(?:时间|日期|开始时间|结束时间)?\s*(?:改为|改成|改到|调整为|调整成|调整到|更改为|更改成|更改到|修改为|修改成|修改到|设为|设置为|设置成|设定为|设定成)?/g," ")
+      .replace(/\b(?:到|至|完成|做完|结束|截止|开始|开始做|去完成|要完成)\b/g," ")
+      .replace(/[，,。；;：:]/g," ").replace(/\s+/g," ").trim();
+    let title=cleanTaskTitle(raw);
+    if(!title||/^(?:时间|日期|任务|长期任务)$/.test(title))title=cleanTaskTitle(endText);
+    if(!title)title="长期任务";
     if(!startParsed.matched||!endParsed.matched||!startTime||!endTime){
       showDraft('<h4>还需要明确开始和结束日期/时间</h4><p>例如：“从今天早上9点到明天下午5点完成博约杯备考”。支持“下午五点”这样的中文数字时间。</p>');
       return;
@@ -652,18 +656,23 @@
     const parsed=parseNatural(raw);
     const reminder=parsed?parsed.reminder:0;
     const countdownEnabled=/(自动倒计时|开始时.{0,5}倒计时|开始自动倒计时|启动.{0,8}倒计时|开启.{0,8}倒计时|打开.{0,8}倒计时|启用.{0,8}倒计时|倒计时.{0,8}(开启|打开|启用|开始|启动))/.test(raw);
-    showDraft('<h4>长期任务草稿（待确认）</h4><p><strong>事项：</strong>'+esc(title)+'</p><p><strong>开始：</strong>'+esc(startParsed.date)+' '+esc(startTime)+'</p><p><strong>结束：</strong>'+esc(endParsed.date)+' '+esc(endTime)+'</p><p class="notice">请检查日期与时间；确认后才会保存。</p><div class="draft-buttons"><button class="secondary-btn" id="discardLongDraft">放弃</button><button class="primary-btn" id="useLongDraft">检查并编辑长期任务</button></div>');
-    $("discardLongDraft").addEventListener("click",()=>{$("draftArea").hidden=true;$("draftArea").innerHTML="";});
-    $("useLongDraft").addEventListener("click",()=>{
-      openTitleChoice(startParsed.date,title,chosenTitle=>{
-        const finalTitle=chosenTitle||title;
+    openTitleChoice(startParsed.date,title,choice=>{
+      const existing=choice.existingEvent;
+      if(existing){
+        openEditor(existing,true);
+        $("eventDate").value=startParsed.date;$("eventEndDate").value=endParsed.date;
+        $("eventTime").value=startTime;$("eventEnd").value=endTime;
+        $("eventCountdownEnabled").checked=countdownEnabled||!!existing.countdownEnabled;syncCountdownOption();
+        $("eventReminder").value=String(reminder||existing.reminder||0);
+      }else{
+        const finalTitle=String(choice.title||title||"长期任务").trim();
         openEditor({id:"",title:finalTitle,date:startParsed.date,endDate:endParsed.date,longTask:true,time:startTime,endTime,reminder,countdownEnabled},true);
         $("eventTitle").value=finalTitle;$("eventDate").value=startParsed.date;$("eventEndDate").value=endParsed.date;
         $("eventTime").value=startTime;$("eventEnd").value=endTime;
         $("eventCountdownEnabled").checked=countdownEnabled;syncCountdownOption();
         $("eventReminder").value=String(reminder);$("eventRepeat").value="none";
-      },true);
-    });
+      }
+    },true);
   });
   $("parseBtn").addEventListener("click",()=>{
     const raw=$("quickText").value,parsed=parseNatural(raw);
@@ -760,9 +769,21 @@
       renderEditSearch(targetKeyword);
       return;
     }
-    showDraft('<h4>待确认草稿</h4><p><strong>事项：</strong>'+esc(parsed.title||"请补充事项名称")+'</p><p><strong>日期：</strong>'+esc(parsed.date)+'</p><p><strong>开始时间：</strong>'+esc(parsed.time||"未识别，请保存前填写")+'</p><p><strong>结束时间：</strong>'+esc(parsed.endTime||"未指定（普通待办）")+'</p><p><strong>地点：</strong>'+esc(parsed.location||"未指定")+'</p><p><strong>重复：</strong>'+esc(repeatLabel(parsed.repeat)||"不重复")+'</p><p><strong>提醒：</strong>'+esc(parsed.reminder?parsed.reminder+" 分钟前":"关闭")+'</p><p class="notice">请检查标题、日期、时间、地点与重复规则后再保存。</p><div class="draft-buttons"><button class="secondary-btn" id="discardDraft">放弃</button><button class="primary-btn" id="useDraft">检查并编辑</button></div>');
-    $("discardDraft").addEventListener("click",()=>{$("draftArea").hidden=true;$("draftArea").innerHTML="";});
-    $("useDraft").addEventListener("click",()=>{openTitleChoice(parsed.date,parsed.title,chosenTitle=>{const finalTitle=chosenTitle||parsed.title;openEditor({...parsed,id:"",title:finalTitle});$("eventId").value="";$("eventTitle").value=finalTitle;$("eventDate").value=parsed.date;$("eventTime").value=parsed.time;$("eventEnd").value=parsed.endTime||"";$("eventCountdownEnabled").checked=!!parsed.countdownEnabled;syncCountdownOption();$("eventReminder").value=String(parsed.reminder);$("eventLocation").value=parsed.location;$("eventRepeat").value=parsed.repeat;$("eventSpecialReminder").checked=!!parsed.specialReminder;});});
+    openTitleChoice(parsed.date,parsed.title,choice=>{
+      const existing=choice.existingEvent;
+      if(existing){
+        openEditor(existing,!!existing.longTask);
+        if(parsed.time)$("eventTime").value=parsed.time;
+        if(parsed.endTime)$("eventEnd").value=parsed.endTime;
+        if(parsed.location)$("eventLocation").value=parsed.location;
+        if(parsed.countdownEnabled)$("eventCountdownEnabled").checked=true;
+        syncCountdownOption();
+      }else{
+        const finalTitle=String(choice.title||parsed.title||"").trim()||"新日程";
+        openEditor({...parsed,id:"",title:finalTitle,date:choice.date||parsed.date});
+        $("eventId").value="";$("eventTitle").value=finalTitle;$("eventDate").value=choice.date||parsed.date;$("eventTime").value=parsed.time;$("eventEnd").value=parsed.endTime||"";$("eventCountdownEnabled").checked=!!parsed.countdownEnabled;syncCountdownOption();$("eventReminder").value=String(parsed.reminder);$("eventLocation").value=parsed.location;$("eventRepeat").value=parsed.repeat;$("eventSpecialReminder").checked=!!parsed.specialReminder;
+      }
+    });
   });
   if ("serviceWorker" in navigator && location.protocol === "https:") {
     window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js").catch(() => {}));
