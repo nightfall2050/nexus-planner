@@ -176,7 +176,7 @@
     const toMin=(period,token)=>{
       const m=String(token).match(/(\\d{1,2})(?:(?::|：)(\\d{1,2})|(?:点|时)(\\d{1,2})分?|(?:点|时)(半)?)/);
       if(!m)return null;
-      let h=Number(m[1]),mi=m[2]!==undefined?Number(m[2]):(m[3]==="半"?30:0);
+      let h=Number(m[1]),mi=m[2]!==undefined?Number(m[2]):(m[3]!==undefined?Number(m[3]):(m[4]==="半"?30:0));
       if(/下午|晚上|傍晚|晚/.test(period||"")&&h<12)h+=12;
       if(/上午|早上|早/.test(period||"")&&h===12)h=0;
       if(/中午/.test(period||"")&&h<11)h+=12;
