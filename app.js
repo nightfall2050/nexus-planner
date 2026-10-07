@@ -270,7 +270,30 @@
         if(writeGoals(goals)&&writeCheckins(items)){renderStudyDesk();toast("已取消打卡模式；该步骤已恢复为普通步骤。");}
       };actions.append(cancel);
     }
+    const deleteStep=document.createElement("button");deleteStep.type="button";deleteStep.className="mini-btn";deleteStep.textContent="删除步骤";deleteStep.title="删除这个目标步骤";deleteStep.disabled=ended;deleteStep.onclick=()=>deleteGoalStep(goal.id,step.id);actions.append(deleteStep);
     row.append(actions);return row;
+  }
+  function deleteGoalStep(goalId,stepId){
+    const goals=readGoals(),goal=goals.find(g=>g.id===goalId),step=goal?.steps.find(s=>s.id===stepId);
+    if(!goal||!step)return;
+    const checkin=goalCheckinForStep(step);
+    const msg=checkin?.longTerm
+      ?"删除步骤“"+step.title+"”？该步骤会从目标中移除，但它已经是独立长期打卡，不会被删除。"
+      :"删除步骤“"+step.title+"”？已经排入日历的日程不会自动删除。";
+    if(!confirm(msg))return;
+    const nextSteps=goal.steps.filter(s=>s.id!==stepId);
+    goal.steps=nextSteps;
+    const checkins=readCheckins();
+    if(checkin){
+      if(checkin.longTerm){
+        const item=checkins.find(x=>x.id===checkin.id);
+        if(item){item.goalId="";item.stepId="";item.active=true;item.endedAt=0;}
+      }else{
+        const kept=checkins.filter(x=>x.id!==checkin.id);
+        checkins.length=0;kept.forEach(x=>checkins.push(x));
+      }
+    }
+    if(writeGoals(goals)&&writeCheckins(checkins)){renderStudyDesk();toast(checkin?.longTerm?"步骤已删除，独立长期打卡已保留。":"步骤已删除。");}
   }
   function renderGoals(){
     const goals=readGoals(),list=$("goalRoadmapList");$("goalRoadmapCount").textContent=goals.length+" 个目标";list.innerHTML="";
@@ -305,7 +328,8 @@
         const label=document.createElement("span");label.textContent=step.title;
         const schedule=document.createElement("button");schedule.type="button";schedule.className="goal-schedule-btn";schedule.textContent=step.scheduledEventIds?.length?"再次排入日程":"排进日程";schedule.disabled=ended||!!step.done;schedule.onclick=()=>scheduleGoalStep(goal.id,step.id);
         const checkinBtn=document.createElement("button");checkinBtn.type="button";checkinBtn.className="goal-checkin-set-btn";checkinBtn.textContent="设置打卡";checkinBtn.disabled=ended||!!step.done;checkinBtn.onclick=()=>openGoalCheckinDialog(goal,step);
-        row.append(check,label,schedule,checkinBtn);steps.append(row);
+        const deleteBtn=document.createElement("button");deleteBtn.type="button";deleteBtn.className="mini-btn";deleteBtn.textContent="删除步骤";deleteBtn.title="删除这个目标步骤";deleteBtn.disabled=ended;deleteBtn.onclick=()=>deleteGoalStep(goal.id,step.id);
+        row.append(check,label,schedule,checkinBtn,deleteBtn);steps.append(row);
       });
       card.append(steps);
       const add=document.createElement("button");add.type="button";add.className="goal-add-step-btn";add.textContent="＋ 添加一个步骤";add.disabled=ended;
