@@ -154,11 +154,46 @@
     $("weeklyReflectionSaved").textContent=typeof reflections[startKey]==="string"?"本周复盘已保存到本地":"仅保存在当前浏览器";
     $("saveWeeklyReflectionBtn").onclick=()=>{try{const all=JSON.parse(localStorage.getItem(WEEKLY_REFLECTION_KEY)||"{}");all[startKey]=$("weeklyReflectionInput").value.slice(0,1000);const keys=Object.keys(all).sort().slice(-26),small={};keys.forEach(k=>small[k]=all[k]);localStorage.setItem(WEEKLY_REFLECTION_KEY,JSON.stringify(small));$("weeklyReflectionSaved").textContent="已保存 · "+startKey;toast("本周复盘已保存。");}catch(e){toast("复盘保存失败，请检查浏览器存储空间。");}};
   }
+  const GOALS_KEY="nexus-planner-goals-v1";
+  function readGoals(){try{const data=JSON.parse(localStorage.getItem(GOALS_KEY)||"[]");return Array.isArray(data)?data.filter(g=>g&&typeof g.id==="string"&&typeof g.title==="string"&&Array.isArray(g.steps)):[];}catch(e){return [];}}
+  function writeGoals(goals){try{localStorage.setItem(GOALS_KEY,JSON.stringify(goals));return true;}catch(e){toast("目标保存失败，请检查浏览器存储空间。");return false;}}
+  function renderGoals(){
+    const goals=readGoals(),list=$("goalRoadmapList");$("goalRoadmapCount").textContent=goals.length+" 个目标";list.innerHTML="";
+    if(!goals.length){list.innerHTML='<div class="today-empty">还没有长期目标。可以从一个你真正关心的结果开始，步骤不必一次写完。</div>';return;}
+    goals.forEach(goal=>{
+      const done=goal.steps.filter(s=>s.done).length,total=goal.steps.length,pct=total?Math.round(done/total*100):0;
+      const card=document.createElement("article");card.className="goal-card";
+      const header=document.createElement("div");header.className="goal-card-header";
+      const copy=document.createElement("div");copy.className="goal-card-copy";
+      const title=document.createElement("h4");title.textContent=goal.title;copy.append(title);
+      if(goal.targetDate){const date=document.createElement("small");date.textContent="目标日期 · "+goal.targetDate;copy.append(date);}
+      const remove=document.createElement("button");remove.type="button";remove.className="mini-btn";remove.textContent="删除";remove.setAttribute("aria-label","删除目标 "+goal.title);
+      remove.addEventListener("click",()=>{if(!confirm("删除目标“"+goal.title+"”及其步骤？这不会删除已经排入日历的日程。"))return;writeGoals(readGoals().filter(g=>g.id!==goal.id));renderGoals();});
+      header.append(copy,remove);card.append(header);
+      const progress=document.createElement("div");progress.className="goal-progress-meta";progress.innerHTML="<span>"+done+" / "+total+" 步完成</span><strong>"+pct+"%</strong>";card.append(progress);
+      const track=document.createElement("div");track.className="goal-progress-track";const fill=document.createElement("span");fill.style.width=pct+"%";track.append(fill);card.append(track);
+      const steps=document.createElement("div");steps.className="goal-step-list";
+      goal.steps.forEach((step,index)=>{
+        const row=document.createElement("div");row.className="goal-step"+(step.done?" is-done":"");
+        const check=document.createElement("input");check.type="checkbox";check.checked=!!step.done;check.setAttribute("aria-label","步骤完成状态："+step.title);
+        check.addEventListener("change",()=>{const current=readGoals(),g=current.find(x=>x.id===goal.id);if(!g||!g.steps[index])return;g.steps[index].done=check.checked;g.steps[index].doneAt=check.checked?Date.now():0;writeGoals(current);renderGoals();});
+        const label=document.createElement("span");label.textContent=step.title;
+        const schedule=document.createElement("button");schedule.type="button";schedule.className="goal-schedule-btn";schedule.textContent="排进日历";schedule.disabled=!!step.done;schedule.addEventListener("click",()=>{const today=dateKey(new Date());openEditor(null);$("eventTitle").value=step.title;$("eventDate").value=today;});
+        row.append(check,label,schedule);steps.append(row);
+      });
+      card.append(steps);
+      const add=document.createElement("button");add.type="button";add.className="goal-add-step-btn";add.textContent="＋ 添加一个步骤";
+      add.addEventListener("click",()=>{const title=prompt("新步骤的名称");if(!title||!title.trim())return;const current=readGoals(),g=current.find(x=>x.id===goal.id);if(!g)return;g.steps.push({id:"step-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,6),title:title.trim().slice(0,180),done:false,doneAt:0});if(writeGoals(current))renderGoals();});
+      card.append(add);list.append(card);
+    });
+  }
+  $("goalCreateForm").addEventListener("submit",ev=>{ev.preventDefault();const title=$("goalTitleInput").value.trim(),targetDate=$("goalDateInput").value,steps=$("goalStepsInput").value.split(/\n+/).map(s=>s.trim()).filter(Boolean).slice(0,30).map((title,i)=>({id:"step-"+Date.now().toString(36)+"-"+i,title:title.slice(0,180),done:false,doneAt:0}));if(!title){toast("请先填写目标名称。");return;}const goals=readGoals();goals.unshift({id:"goal-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,6),title:title.slice(0,120),targetDate,createdAt:Date.now(),steps});if(writeGoals(goals)){ $("goalTitleInput").value="";$("goalDateInput").value="";$("goalStepsInput").value="";renderGoals();toast("目标已保存。");}});
   function renderStudyDesk(){
     const today=dateKey(new Date());
     const todayEvents=occurrenceEvents(today);
     renderTodayOverview(today,todayEvents);
     renderWeeklyReview();
+    renderGoals();
     const tasks=todayEvents.filter(studyEvent);
     const done=tasks.filter(e=>e.done).length;
     const pending=tasks.filter(e=>!e.done);

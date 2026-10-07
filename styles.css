@@ -191,3 +191,33 @@
 .weekly-reflection-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:9px}
 .weekly-reflection-footer button{font-size:11px}
 @media(max-width:560px){.weekly-review{padding:15px}.weekly-review-metrics{grid-template-columns:1fr}.weekly-review-metrics article{padding:10px}.weekly-review-metrics strong{font-size:19px}.weekly-review-chart{gap:5px}.weekly-reflection-footer{align-items:flex-start;flex-direction:column}}
+
+/* Goal decomposition */
+.goal-roadmap{margin:0 0 18px;padding:22px}
+.goal-roadmap-intro{line-height:1.65;margin:0 0 15px}
+.goal-create-form{padding:15px;border:1px solid var(--line);border-radius:12px;background:#0b1425a8}
+.goal-form-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(160px,.55fr);gap:12px}
+.goal-create-form label{display:block;font-size:11px;font-weight:650;margin-bottom:7px}
+.goal-create-form input,.goal-create-form textarea{width:100%;min-width:0;border:1px solid var(--line);border-radius:9px;padding:10px;background:#0b1425;color:var(--text);font:inherit;font-size:12px;margin-bottom:12px}
+.goal-create-form textarea{resize:vertical;line-height:1.6}
+.goal-create-footer{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.goal-create-footer button{font-size:11px}
+.goal-roadmap-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:14px}
+.goal-card{min-width:0;border:1px solid var(--line);border-radius:12px;padding:14px;background:#101b2e}
+.goal-card-header{display:flex;align-items:flex-start;gap:8px;justify-content:space-between}
+.goal-card-copy{min-width:0}
+.goal-card-copy h4{font-size:14px;margin:0 0 5px;overflow-wrap:anywhere}
+.goal-card-copy small{font-size:10px;color:var(--muted)}
+.goal-progress-meta{display:flex;justify-content:space-between;align-items:center;margin:13px 0 6px;font-size:10px;color:var(--muted)}
+.goal-progress-meta strong{color:#a9d6ff}
+.goal-progress-track{height:5px;background:#26364d;border-radius:8px;overflow:hidden}
+.goal-progress-track span{display:block;height:100%;background:linear-gradient(90deg,#5c9cf3,#72ddba);border-radius:8px}
+.goal-step-list{display:flex;flex-direction:column;gap:7px;margin:13px 0}
+.goal-step{display:flex;align-items:center;gap:8px;min-width:0}
+.goal-step input{accent-color:#72ddba;flex:0 0 auto}
+.goal-step>span{flex:1;min-width:0;font-size:11px;line-height:1.5;overflow-wrap:anywhere}
+.goal-step.is-done>span{text-decoration:line-through;color:var(--muted)}
+.goal-schedule-btn,.goal-add-step-btn{font-size:10px;padding:5px 7px;border:1px solid var(--line);border-radius:7px;background:transparent;color:#a9c8f3;flex:0 0 auto}
+.goal-schedule-btn:disabled{opacity:.4}
+.goal-add-step-btn{width:100%;padding:8px;border-style:dashed}
+@media(max-width:700px){.goal-roadmap{padding:15px}.goal-roadmap-list{grid-template-columns:1fr}.goal-form-grid{grid-template-columns:1fr;gap:0}.goal-create-footer{align-items:flex-start;flex-direction:column}}
