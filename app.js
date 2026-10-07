@@ -169,13 +169,20 @@
   function incrementCheckin(checkinId){const items=readCheckins(),item=items.find(x=>x.id===checkinId);if(!item||checkinEnded(item))return false;const day=todayKey();if(day<item.startDate||(!item.longTerm&&item.endDate&&day>item.endDate))return false;item.counts=item.counts||{};item.counts[day]=(Number(item.counts[day])||0)+1;item.lastCheckinAt=Date.now();return writeCheckins(items);}
   function firstWeekdayOnOrAfter(start,weekday){const d=parseDate(start),delta=(weekday-d.getDay()+7)%7;d.setDate(d.getDate()+delta);return dateKey(d);}
   function stepSchedulePlan(step,goal){
-    const raw=String(step.title||"").trim(),segments=raw.split(/[，,；;]/).map(s=>s.trim()).filter(Boolean);
-    const parsedSegments=segments.map(s=>parseNatural(s)).filter(p=>p&&p.time);
+    const raw=String(step.title||"").trim();
+    const rangeRe=/(上午|早上|中午|下午|晚上|傍晚)?\s*(\d{1,2})(?::|：|点|时)(\d{1,2})?\s*(?:到|至|-|—|~|～)\s*(上午|早上|中午|下午|傍晚|晚上)?\s*(\d{1,2})(?::|：|点|时)(\d{1,2})?/g;
+    const ranges=[];let m;
+    const toMin=(period,h,mi)=>{h=Number(h);mi=Number(mi||0);if(/下午|晚上|傍晚/.test(period||"")&&h<12)h+=12;if(/上午|早上/.test(period||"")&&h===12)h=0;if(/中午/.test(period||"")&&h<11)h+=12;return h*60+mi;};
+    while((m=rangeRe.exec(raw))!==null){
+      const firstPeriod=m[1]||"",secondPeriod=m[4]||firstPeriod;
+      const startMin=toMin(firstPeriod,m[2],m[3]),endMin=toMin(secondPeriod,m[5],m[6]);
+      if(endMin>startMin)ranges.push({time:String(Math.floor(startMin/60)).padStart(2,"0")+":"+String(startMin%60).padStart(2,"0"),endTime:String(Math.floor(endMin/60)).padStart(2,"0")+":"+String(endMin%60).padStart(2,"0")});
+    }
+    if(!ranges.length){
+      const parsed=parseNatural(raw);
+      if(parsed?.time)ranges.push({time:parsed.time,endTime:parsed.endTime});
+    }
     const parsedAll=parseNatural(raw)||{};
-    const parsedTimes=parsedSegments.length?parsedSegments.map(p=>({time:p.time,endTime:p.endTime})):parsedAll.time?[{time:parsedAll.time,endTime:parsedAll.endTime}]:[];
-    if(!parsedTimes.length)return {error:"没有识别到开始/结束时间。可以先把时间写成“每天晚上 9 点到 10 点半”这种形式。"};
-    const explicitStart=/(今天|明天|后天|大后天|\d{1,2}月\d{1,2}日?|\d{4}[年./-]\d{1,2}[月./-]\d{1,2})/.test(raw);
-    const start=explicitStart&&parsedAll.date?parsedAll.date:dateKey(new Date(goal.createdAt||Date.now()));
     const repeatDaily=/每天|每日/.test(raw);
     const repeatWeekly=/每周|每个星期|每星期/.test(raw);
     const weekdays=[];
@@ -186,22 +193,25 @@
     if(/周四|星期四/.test(raw))weekdays.push(4);
     if(/周五|星期五/.test(raw))weekdays.push(5);
     if(/周六|星期六/.test(raw))weekdays.push(6);
+    if(!ranges.length){
+      if(/每天|每日|每周|每个星期|每星期/.test(raw))return {error:"这一步没有明确的日程时间。建议把它设置成学习打卡，而不是日历任务。"};
+      return {error:"没有识别到开始/结束时间。可以先把时间写成“每天晚上 9 点到 10 点半”这种形式。"};
+    }
+    const explicitStart=/\d{4}[年./-]\d{1,2}[月./-]\d{1,2}|\d{1,2}月\d{1,2}日?/.test(raw);
+    const start=explicitStart&&parsedAll.date?parsedAll.date:dateKey(new Date(goal.createdAt||Date.now()));
     if(goal.targetDate&&start>goal.targetDate)return {error:"目标开始日期晚于目标截止日期。"};
     const repeat=repeatDaily?"daily":(repeatWeekly?"weekly":"none");
     const targets=repeat==="weekly"&&weekdays.length?weekdays:[null];
-    const title=(parsedAll.title||raw).replace(/\s+/g," ").trim()||raw;
     const subject=/(英语|四六级|单词|听力)/.test(raw)?"英语":"学习";
     const events=[];
-    for(const t of parsedTimes){
-      const a=t.time?.split(":").map(Number)||[],b=t.endTime?.split(":").map(Number)||[];
-      const mins=a.length===2&&b.length===2?Math.max(5,b[0]*60+b[1]-a[0]*60-a[1]):30;
+    for(const t of ranges){
       for(const weekday of targets){
         const eventDate=weekday===null?start:firstWeekdayOnOrAfter(start,weekday);
         if(goal.targetDate&&eventDate>goal.targetDate)continue;
-        events.push({id:id(),title,date:eventDate,time:t.time,endTime:t.endTime,reminder:0,reminderRevision:0,countdownEnabled:false,specialReminder:false,location:"",notes:"",repeat,repeatUntil:goal.targetDate||undefined,done:false,excludedDates:[],overrides:{},study:{subject,estimatedMinutes:mins,priority:2}});
+        events.push({id:id(),title:raw,date:eventDate,time:t.time,endTime:t.endTime,reminder:0,reminderRevision:0,countdownEnabled:false,specialReminder:false,location:"",notes:"",repeat,repeatUntil:goal.targetDate||undefined,done:false,excludedDates:[],overrides:{},study:{subject,estimatedMinutes:Math.max(5,(Number(t.endTime.slice(0,2))*60+Number(t.endTime.slice(3)))-(Number(t.time.slice(0,2))*60+Number(t.time.slice(3)))),priority:2}});
       }
     }
-    return {start,repeat,title,events};
+    return {start,repeat,events};
   }
   function scheduleGoalStep(goalId,stepId){
     const goals=readGoals(),goal=goals.find(g=>g.id===goalId),step=goal?.steps.find(s=>s.id===stepId);
