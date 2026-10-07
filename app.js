@@ -759,7 +759,7 @@
     else if (/明天|明日/.test(raw)) { d.setDate(d.getDate()+1); matched=true; }
     else if (/今天|今日/.test(raw)) matched=true;
     const full = raw.match(/(20\d{2})[年./-](\d{1,2})[月./-](\d{1,2})日?/);
-    const md = raw.match(/(\d{1,2})月(\d{1,2})日?/);
+    const md = raw.match(/(\d{1,2})月(\d{1,2})(?:日|号)?/);
     if (full) { d.setFullYear(+full[1], +full[2]-1, +full[3]); matched=true; }
     else if (md) { d.setFullYear(now.getFullYear(), +md[1]-1, +md[2]); matched=true; }
     const wd = raw.match(/(下周|下星期|这周|本周|周|星期)([一二三四五六日天1-7])/);
@@ -773,14 +773,14 @@
   }
   function parseTimeRange(input) {
     const source=String(input||"");
-    const re=/(上午|早上|中午|下午|晚上|傍晚)?\s*(\d{1,2})(?:(?:[:：](\d{1,2}))|(?:[点时](?:(\d{1,2})分?|半)?))?/g;
+    const re=/(上午|早上|中午|下午|晚上|傍晚|晚)?\s*(\d{1,2})(?:(?:[:：](\d{1,2}))|(?:[点时](?:(\d{1,2})分?|半)?))?/g;
     const tokens=[]; let m;
     while((m=re.exec(source))!==null) {
       if(!m[1]&&!/[:：点时]/.test(m[0])) continue;
       const rawHour=Number(m[2]), minute=Number(m[3]||m[4]||(/半$/.test(m[0])?30:0));
       if(rawHour>23||minute>59) continue;
       let hour=rawHour, period=m[1]||(tokens.length?tokens[0].period:"");
-      if(/下午|晚上|傍晚/.test(period)&&hour<12)hour+=12;
+      if(/下午|晚上|傍晚|晚/.test(period)&&hour<12)hour+=12;
       if(/上午|早上/.test(period)&&hour===12)hour=0;
       if(/中午/.test(period)&&hour<11)hour+=12;
       tokens.push({index:m.index,end:re.lastIndex,hour,minute,rawHour,period:m[1]||""});
