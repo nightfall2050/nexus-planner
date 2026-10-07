@@ -277,23 +277,32 @@
     const goals=readGoals(),goal=goals.find(g=>g.id===goalId),step=goal?.steps.find(s=>s.id===stepId);
     if(!goal||!step)return;
     const checkin=goalCheckinForStep(step);
+    const eventIds=Array.isArray(step.scheduledEventIds)?step.scheduledEventIds.filter(id=>state.events.some(e=>e.id===id)):[];
     const msg=checkin?.longTerm
-      ?"删除步骤“"+step.title+"”？该步骤会从目标中移除，但它已经是独立长期打卡，不会被删除。"
-      :"删除步骤“"+step.title+"”？已经排入日历的日程不会自动删除。";
+      ?"删除步骤“"+step.title+"”？该步骤会从目标中移除，但它已经独立为长期打卡，所以长期打卡会继续保留。"
+      :eventIds.length
+        ?"删除步骤“"+step.title+"”？与它关联的 "+eventIds.length+" 个日历安排也会一起删除。"
+        :"删除步骤“"+step.title+"”？";
     if(!confirm(msg))return;
-    const nextSteps=goal.steps.filter(s=>s.id!==stepId);
-    goal.steps=nextSteps;
+    snapshot();
+    if(eventIds.length)state.events=state.events.filter(e=>!eventIds.includes(e.id));
+    goal.steps=goal.steps.filter(s=>s.id!==stepId);
     const checkins=readCheckins();
-    if(checkin){
-      if(checkin.longTerm){
-        const item=checkins.find(x=>x.id===checkin.id);
-        if(item){item.goalId="";item.stepId="";item.active=true;item.endedAt=0;}
-      }else{
-        const kept=checkins.filter(x=>x.id!==checkin.id);
-        checkins.length=0;kept.forEach(x=>checkins.push(x));
-      }
+    if(checkin?.longTerm){
+      const item=checkins.find(x=>x.id===checkin.id);
+      if(item){item.goalId="";item.stepId="";item.active=true;item.endedAt=0;}
+    }else if(checkin){
+      const index=checkins.findIndex(x=>x.id===checkin.id);if(index>=0)checkins.splice(index,1);
     }
-    if(writeGoals(goals)&&writeCheckins(checkins)){renderStudyDesk();toast(checkin?.longTerm?"步骤已删除，独立长期打卡已保留。":"步骤已删除。");}
+    if(writeGoals(goals)&&writeCheckins(checkins)){save();renderStudyDesk();toast(checkin?.longTerm?"步骤已删除，独立长期打卡已保留。":eventIds.length?"步骤及其日程已删除。":"步骤已删除。");}
+  }
+  function parseGoalStepLines(value){
+    return String(value||"").split(/\n+/).map(s=>s.trim()).filter(Boolean).slice(0,30).map(title=>({id:"step-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,8),title:title.slice(0,180),done:false,doneAt:0}));
+  }
+  function openAddGoalSteps(goalId){
+    const dialog=$("goalAddStepsDialog"),input=$("goalAddStepsInput");
+    if(!dialog||!input)return;
+    $("goalAddStepsGoalId").value=goalId;input.value="";dialog.showModal();input.focus();
   }
   function renderGoals(){
     const goals=readGoals(),list=$("goalRoadmapList");$("goalRoadmapCount").textContent=goals.length+" 个目标";list.innerHTML="";
@@ -332,8 +341,7 @@
         row.append(check,label,schedule,checkinBtn,deleteBtn);steps.append(row);
       });
       card.append(steps);
-      const add=document.createElement("button");add.type="button";add.className="goal-add-step-btn";add.textContent="＋ 添加一个步骤";add.disabled=ended;
-      add.onclick=()=>{const title=prompt("新步骤的名称");if(!title||!title.trim())return;const current=readGoals(),g=current.find(x=>x.id===goal.id);if(!g)return;g.steps.push({id:"step-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,6),title:title.trim().slice(0,180),done:false,doneAt:0});if(writeGoals(current))renderStudyDesk();};
+      const add=document.createElement("button");add.type="button";add.className="goal-add-step-btn";add.textContent="＋ 添加步骤";add.disabled=ended;add.onclick=()=>openAddGoalSteps(goal.id);
       card.append(add);list.append(card);
     });
   }
@@ -356,7 +364,15 @@
     });
   }
   function renderCheckinSection(){renderIndependentCheckins();}
-  $("goalCreateForm").addEventListener("submit",ev=>{ev.preventDefault();const title=$("goalTitleInput").value.trim(),targetDate=$("goalDateInput").value,steps=$("goalStepsInput").value.split(/\n+/).map(s=>s.trim()).filter(Boolean).slice(0,30).map((title,i)=>({id:"step-"+Date.now().toString(36)+"-"+i,title:title.slice(0,180),done:false,doneAt:0}));if(!title){toast("请先填写目标名称。");return;}const goals=readGoals();goals.unshift({id:"goal-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,6),title:title.slice(0,120),targetDate,createdAt:Date.now(),completedAt:0,steps});if(writeGoals(goals)){ $("goalTitleInput").value="";$("goalDateInput").value="";$("goalStepsInput").value="";renderStudyDesk();toast("目标已保存。");}});
+  $("goalCreateForm").addEventListener("submit",ev=>{ev.preventDefault();const title=$("goalTitleInput").value.trim(),targetDate=$("goalDateInput").value,steps=parseGoalStepLines($("goalStepsInput").value);if(!title){toast("请先填写目标名称。");return;}const goals=readGoals();goals.unshift({id:"goal-"+Date.now().toString(36)+"-"+Math.random().toString(36).slice(2,6),title:title.slice(0,120),targetDate,createdAt:Date.now(),completedAt:0,steps});if(writeGoals(goals)){ $("goalTitleInput").value="";$("goalDateInput").value="";$("goalStepsInput").value="";renderStudyDesk();toast("目标已保存。");}});
+  $("goalAddStepsForm").addEventListener("submit",ev=>{
+    ev.preventDefault();
+    const goalId=$("goalAddStepsGoalId").value,steps=parseGoalStepLines($("goalAddStepsInput").value);
+    if(!steps.length){toast("请至少填写一个步骤，每行一个。");return;}
+    const goals=readGoals(),goal=goals.find(x=>x.id===goalId);if(!goal)return;
+    goal.steps.push(...steps);
+    if(writeGoals(goals)){$("goalAddStepsDialog").close();renderStudyDesk();toast("已添加 "+steps.length+" 个步骤。");}
+  });
   $("goalCheckinLongTerm").addEventListener("change",()=>{$("goalCheckinEnd").disabled=$("goalCheckinLongTerm").checked;if($("goalCheckinLongTerm").checked)$("goalCheckinEnd").value="";});
   $("independentCheckinLongTerm").addEventListener("change",()=>{$("independentCheckinEnd").disabled=$("independentCheckinLongTerm").checked;if($("independentCheckinLongTerm").checked)$("independentCheckinEnd").value="";});
   $("goalCheckinForm").addEventListener("submit",ev=>{
