@@ -488,14 +488,14 @@
       if(!ok)return;
       const current=JSON.stringify(backupPayload());
       localStorage.setItem(RECOVERY_BACKUP_KEY,current);
-      const previousEvents=state.events,previousSeen=[...state.reminderSeen];
+      const previousEvents=state.events,previousSeen=[...state.reminderSeen],previousLocalState=readBackupState();
       try{
         state.events=events;save();
         if(hasExtendedState)restoreBackupState(data.localState);
         state.reminderSeen.clear();(hasExtendedState?JSON.parse(localStorage.getItem(REMINDER_SEEN_KEY)||"[]"):seen).filter(k=>typeof k==="string").forEach(k=>state.reminderSeen.add(k));persistReminderSeen();
       }catch(error){
         state.events=previousEvents;state.reminderSeen.clear();previousSeen.forEach(k=>state.reminderSeen.add(k));
-        try{localStorage.setItem(STORAGE_KEY,JSON.stringify({version:1,events:previousEvents}));persistReminderSeen();}catch(_){}
+        try{localStorage.setItem(STORAGE_KEY,JSON.stringify({version:1,events:previousEvents}));restoreBackupState(previousLocalState);persistReminderSeen();}catch(_){}
         throw error;
       }
       snapshot();updateRecoveryButton();render();toast("备份导入完成；如需撤回，可恢复导入前数据。");
@@ -510,8 +510,9 @@
     const current=JSON.stringify(backupPayload());
     try{
       state.events=backup.events;save();
-      state.reminderSeen.clear();(Array.isArray(backup.reminderSeen)?backup.reminderSeen:[]).filter(k=>typeof k==="string").forEach(k=>state.reminderSeen.add(k));persistReminderSeen();
-      localStorage.setItem(RECOVERY_BACKUP_KEY,current);snapshot();render();toast("已恢复；当前数据已另存为下一份恢复点。");
+      if(backup.localState&&typeof backup.localState==="object")restoreBackupState(backup.localState);
+      state.reminderSeen.clear();(backup.localState&&backup.localState[REMINDER_SEEN_KEY]?JSON.parse(localStorage.getItem(REMINDER_SEEN_KEY)||"[]"):Array.isArray(backup.reminderSeen)?backup.reminderSeen:[]).filter(k=>typeof k==="string").forEach(k=>state.reminderSeen.add(k));persistReminderSeen();
+      localStorage.setItem(RECOVERY_BACKUP_KEY,current);snapshot();render();toast("已恢复；目标、学习、复盘等数据也已回到导入前状态。");
     }catch(e){toast("恢复失败，存储空间可能不足。");}
   });
   updateRecoveryButton();
