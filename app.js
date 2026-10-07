@@ -425,6 +425,8 @@
     const studyData=$("eventStudyEnabled").checked?{subject:$("eventStudySubject").value.trim(),estimatedMinutes:Math.max(5,Math.min(1440,Number($("eventStudyMinutes").value)||30)),priority:Math.max(1,Math.min(3,Number($("eventStudyPriority").value)||1))}:undefined;
     if(!title||!date){toast("请填写事项名称和日期");return;}
     if(longTask&&(!endDate||endDate<date)){toast("长期任务的结束日期不能早于开始日期");return;}
+    const repeatUntilInput=$("eventRepeatUntil").value;
+    if(repeatUntilInput&&repeatUntilInput<date){toast("重复结束日期不能早于开始日期");return;}
     if(endTime&&!time){toast("设置结束时间前，请先填写开始时间");return;}
     if(!longTask&&time&&endTime&&endTime<=time){toast("结束时间必须晚于开始时间");return;}
     if(longTask&&date===endDate&&time&&endTime&&endTime<=time){toast("同一天的结束时间必须晚于开始时间");return;}
