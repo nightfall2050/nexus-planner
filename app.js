@@ -178,7 +178,7 @@
         const check=document.createElement("input");check.type="checkbox";check.checked=!!step.done;check.setAttribute("aria-label","步骤完成状态："+step.title);
         check.addEventListener("change",()=>{const current=readGoals(),g=current.find(x=>x.id===goal.id);if(!g||!g.steps[index])return;g.steps[index].done=check.checked;g.steps[index].doneAt=check.checked?Date.now():0;writeGoals(current);renderGoals();});
         const label=document.createElement("span");label.textContent=step.title;
-        const schedule=document.createElement("button");schedule.type="button";schedule.className="goal-schedule-btn";schedule.textContent="排进日历";schedule.disabled=!!step.done;schedule.addEventListener("click",()=>{const today=dateKey(new Date());openEditor({id:"",title:step.title,date:today,repeat:"none"});});
+        const schedule=document.createElement("button");schedule.type="button";schedule.className="goal-schedule-btn";schedule.textContent="排进日历";schedule.disabled=!!step.done;schedule.addEventListener("click",()=>{const today=dateKey(new Date());openEditor(null);$("eventTitle").value=step.title;$("eventDate").value=today;});
         row.append(check,label,schedule);steps.append(row);
       });
       card.append(steps);
