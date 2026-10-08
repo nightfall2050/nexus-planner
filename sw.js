@@ -1,6 +1,6 @@
 "use strict";
-const CACHE_NAME = "nexus-planner-shell-v21";
-const APP_FILES = ["./", "./index.html", "./styles.css", "./app.v49.js", "./manifest.webmanifest"];
+const CACHE_NAME = "nexus-planner-shell-v22";
+const APP_FILES = ["./", "./index.html", "./styles.css", "./app.v50.js", "./manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
