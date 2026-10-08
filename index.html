@@ -38,7 +38,7 @@
       } catch (_) {}
     });
   </script>
-  <script src="./app.v50.js?v=1" defer></script>
+  <script src="./app.v51.js?v=1" defer></script>
 </head>
 <body>
   <div class="ambient ambient-a"></div><div class="ambient ambient-b"></div>
@@ -59,7 +59,33 @@
     <section id="studyDesk" class="study-desk" hidden aria-labelledby="studyDeskHeading">
       <div class="study-welcome"><div><p class="eyebrow">NEXUS / TODAY</p><h2 id="studyDeskHeading">今天，重要的事先做。</h2><p class="muted">先看清今天，再决定下一步。学习、工作与个人日程在这里汇总。</p></div><button type="button" id="studyAddBtn" class="primary-btn">＋ 新建学习任务</button></div>
       <section class="study-momentum panel" aria-labelledby="studyMomentumHeading"><div class="study-momentum-head"><div><p class="eyebrow">LEARNING RHYTHM</p><h3 id="studyMomentumHeading">今天的学习节奏</h3><p id="studyMomentumMessage" class="muted small">从第一轮专注开始，节奏会随着你的实际执行更新。</p></div><div class="study-streak" id="studyStreak"><span>连续完成</span><strong>0 天</strong></div></div><div class="study-momentum-grid"><article class="momentum-metric"><span>计划</span><strong id="studyPlanMinutes">0 分钟</strong><small>今日学习任务</small></article><article class="momentum-metric"><span>实际专注</span><strong id="studyActualMinutes">0 分钟</strong><small>已结束的专注会话</small></article><article class="momentum-metric"><span>完成率</span><strong id="studyDoneRate">0%</strong><small>今日学习任务</small></article><article class="momentum-metric"><span>下一步</span><strong id="studyMomentumNext">—</strong><small>建议立即行动</small></article></div><div class="study-rhythm-track"><span id="studyRhythmBar"></span></div></section>
-      <section class="today-command panel" aria-labelledby="todayCommandHeading">
+      <section class="flow-command panel" id="flowCommand" aria-labelledby="flowHeading">
+  <div class="flow-command-glow" aria-hidden="true"></div>
+  <div class="flow-head">
+    <div><p class="eyebrow">NEXUS / LIVE FLOW</p><h3 id="flowHeading">现在，就做下一步。</h3><p id="flowSubtitle" class="muted small">实时读取今天的安排，只改变呈现，不改变你的原有计划。</p></div>
+    <div class="flow-status"><span id="flowStatusDot"></span><span id="flowStatusText">LIVE</span></div>
+  </div>
+  <div class="flow-grid">
+    <div class="flow-orbit" id="flowOrbit" aria-label="今日节奏实时进度">
+      <div class="flow-orbit-ring"></div><div class="flow-orbit-core"><span id="flowProgress">0%</span><small>今日节奏</small></div>
+      <i class="flow-satellite sat-a"></i><i class="flow-satellite sat-b"></i><i class="flow-satellite sat-c"></i>
+    </div>
+    <div class="flow-now">
+      <span class="flow-kicker" id="flowKicker">正在扫描</span>
+      <h4 id="flowNowTitle">整理你的下一步…</h4>
+      <p id="flowNowMeta" class="muted small"></p>
+      <div class="flow-time-row"><strong id="flowClock">--:--:--</strong><span id="flowCountdown">等待计算</span></div>
+      <div class="flow-actions"><button type="button" class="primary-btn" id="flowStartBtn">进入专注</button><button type="button" class="secondary-btn" id="flowScanBtn">重新扫描</button></div>
+    </div>
+    <div class="flow-window">
+      <div><span>下一窗口</span><strong id="flowWindowValue">—</strong></div>
+      <div><span>今日完成</span><strong id="flowDoneValue">0 / 0</strong></div>
+      <div><span>节奏状态</span><strong id="flowEnergyValue">待启动</strong></div>
+    </div>
+  </div>
+  <div class="flow-timeline" id="flowTimeline" aria-label="今日时间线"></div>
+</section>
+\n    <section class="today-command panel" aria-labelledby="todayCommandHeading">
         <div class="panel-heading"><div><p class="eyebrow">YOUR DAY AT A GLANCE</p><h3 id="todayCommandHeading">今日行动概览</h3></div><span id="todayDateLabel" class="date-badge"></span></div>
         <div class="today-command-stats">
           <article><span>今日安排</span><strong id="todayEventCount">0</strong><small>项日程与任务</small></article>
